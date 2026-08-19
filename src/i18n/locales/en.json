@@ -22,7 +22,7 @@
     "settings": "Settings",
     "language": "Language",
     "selectLanguage": "SELECT LANGUAGE",
-    "save": "Save",
+    "save": "Save Changes",
     "cancel": "Cancel",
     "back": "Back",
     "backToHome": "Back to Home",
@@ -63,6 +63,13 @@
     "mediaRequired": "Please capture or choose a photo first",
     "switchCamera": "Switch Camera",
     "capture": "Capture"
+  },
+  "location": {
+    "title": "Report Location",
+    "useCurrentLocation": "Use Current Location",
+    "selectOnMap": "Select on Map",
+    "confirmLocation": "Use This Location",
+    "locationSelected": "Location selected on map"
   },
   "analyzing": {
     "title": "ANALYZING YOUR REPORT...",
@@ -121,18 +128,48 @@
     "status": "Status"
   },
   "profile": {
-    "title": "Profile",
+    "title": "Profile & Settings",
     "citizenAccount": "Citizen Account",
     "reportsSubmitted": "Reports Submitted",
     "issuesResolved": "Issues Resolved",
     "ward": "Ward / Zone",
     "phone": "Phone",
+    "edit": "Edit",
+    "editProfile": "Edit Profile",
+    "saveChanges": "Save Changes",
     "settings": "Settings",
     "language": "Language",
     "about": "About SwachhLens",
     "aboutDesc": "SwachhLens is an AI-powered waste response decision support system developed for smart civic sanitation management.",
     "signOut": "Sign Out",
     "demoMode": "Demo & Mock Mode Active"
+  },
+  "settings": {
+    "account": "Account",
+    "preferences": "Preferences",
+    "appearance": "Appearance",
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode",
+    "systemMode": "System Preference",
+    "changePassword": "Change Password",
+    "updatePassword": "Update Password",
+    "deleteAccount": "Delete Account",
+    "deleteAccountTitle": "Delete Citizen Account",
+    "deleteAccountWarning": "Deleting your account is permanent. Your account and associated data may no longer be recoverable.",
+    "confirmDelete": "Delete Account",
+    "notifications": "Notifications",
+    "securityPrivacy": "Security & Privacy",
+    "securityOverview": "Security & Privacy Overview",
+    "legal": "Legal & About"
+  },
+  "notifications": {
+    "push": "Push Notifications",
+    "statusUpdates": "Report Status Updates",
+    "alerts": "Urgent Alerts"
+  },
+  "legal": {
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
   },
   "priority": {
     "low": "LOW",

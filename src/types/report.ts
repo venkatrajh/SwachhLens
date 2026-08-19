@@ -52,6 +52,7 @@ export interface SubmitReportPayload {
 export interface LocationData {
   latitude: number;
   longitude: number;
+  source: 'current' | 'map';
   accuracy?: number;
   address?: string;
   timestamp?: number;

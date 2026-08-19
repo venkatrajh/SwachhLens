@@ -13,9 +13,9 @@ export const MobileContainer: React.FC<MobileContainerProps> = ({
   hasBottomNav = true,
 }) => {
   return (
-    <div className="min-h-screen bg-[#F0F4F2] flex justify-center items-stretch antialiased selection:bg-[#EAF6EF]">
+    <div className="min-h-screen bg-[#F0F4F2] dark:bg-[#080E0B] flex justify-center items-stretch antialiased selection:bg-[#EAF6EF] dark:selection:bg-[#1A2C23]">
       <main
-        className={`w-full max-w-[440px] min-h-[100dvh] bg-[#F7FAF8] shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-[#DCE7E1]/50 ${
+        className={`w-full max-w-[440px] min-h-[100dvh] bg-[#F7FAF8] dark:bg-[#0D1712] shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-[#DCE7E1]/50 dark:border-[#294037]/50 ${
           hasBottomNav ? 'pb-24' : 'pb-6'
         } ${className}`}
       >

@@ -22,7 +22,7 @@
     "settings": "ക്രമീകരണങ്ങൾ",
     "language": "ഭാഷ",
     "selectLanguage": "ഭാഷ തിരഞ്ഞെടുക്കുക",
-    "save": "സംരക്ഷിക്കുക",
+    "save": "മാറ്റങ്ങൾ സംരക്ഷിക്കുക",
     "cancel": "റദ്ദാക്കുക",
     "back": "തിരികെ",
     "backToHome": "ഹോമിലേക്ക് മടങ്ങുക",
@@ -63,6 +63,13 @@
     "mediaRequired": "ദയവായി ആദ്യം ഒരു ഫോട്ടോ എടുക്കുകയോ തിരഞ്ഞെടുക്കുകയോ ചെയ്യുക",
     "switchCamera": "ക്യാമറ മാറ്റുക",
     "capture": "ക്യാപ്ചർ"
+  },
+  "location": {
+    "title": "മാലിന്യ ലൊക്കേഷൻ",
+    "useCurrentLocation": "നിലവിലെ ലൊക്കേഷൻ",
+    "selectOnMap": "മാപ്പിൽ തിരഞ്ഞെടുക്കുക",
+    "confirmLocation": "ഈ സ്ഥലം ഉപയോഗിക്കുക",
+    "locationSelected": "മാപ്പിൽ തിരഞ്ഞെടുത്തു"
   },
   "analyzing": {
     "title": "നിങ്ങളുടെ റിപ്പോർട്ട് വിശകലനം ചെയ്യുന്നു...",
@@ -121,18 +128,48 @@
     "status": "നില"
   },
   "profile": {
-    "title": "പ്രൊഫൈൽ",
+    "title": "പ്രൊഫൈലും ക്രമീകരണങ്ങളും",
     "citizenAccount": "പൗര അക്കൗണ്ട്",
     "reportsSubmitted": "സമർപ്പിച്ച റിപ്പോർട്ടുകൾ",
     "issuesResolved": "പരിഹരിച്ച പ്രശ്നങ്ങൾ",
     "ward": "വാർഡ് / മേഖല",
     "phone": "ഫോൺ",
+    "edit": "മാറ്റുക",
+    "editProfile": "പ്രൊഫൈൽ മാറ്റുക",
+    "saveChanges": "മാറ്റങ്ങൾ സംരക്ഷിക്കുക",
     "settings": "ക്രമീകരണങ്ങൾ",
     "language": "ഭാഷ",
     "about": "SwachhLens കുറിച്ച്",
     "aboutDesc": "സ്മാർട്ട് സിറ്റി മാലിന്യ സംസ്കരണത്തിനായി നിർമ്മിച്ച ഒരു AI തീരുമാന പിന്തുണാ സംവിധാനമാണ് SwachhLens.",
     "signOut": "സൈൻ ഔട്ട്",
     "demoMode": "ഡെമോ മോഡ് സജീവമാണ്"
+  },
+  "settings": {
+    "account": "അക്കൗണ്ട്",
+    "preferences": "മുൻഗണനകൾ",
+    "appearance": "തീം (Appearance)",
+    "lightMode": "ലൈറ്റ് മോഡ്",
+    "darkMode": "ഡാർക്ക് മോഡ്",
+    "systemMode": "സിസ്റ്റം ക്രമീകരണം",
+    "changePassword": "പാസ്‌വേഡ് മാറ്റുക",
+    "updatePassword": "പാസ്‌വേഡ് പുതുക്കുക",
+    "deleteAccount": "അക്കൗണ്ട് ഇല്ലാതാക്കുക",
+    "deleteAccountTitle": "പൗര അക്കൗണ്ട് ഇല്ലാതാക്കുക",
+    "deleteAccountWarning": "അക്കൗണ്ട് ഇല്ലാതാക്കുന്നത് ശാശ്വതമാണ്. നിങ്ങളുടെ വിവരങ്ങൾ വീണ്ടെടുക്കാൻ കഴിയില്ല.",
+    "confirmDelete": "അക്കൗണ്ട് ഇല്ലാതാക്കുക",
+    "notifications": "അറിയിപ്പുകൾ",
+    "securityPrivacy": "സുരക്ഷയും സ്വകാര്യതയും",
+    "securityOverview": "സുരക്ഷാ വിവരങ്ങൾ",
+    "legal": "നിയമപരമായ വിവരങ്ങൾ"
+  },
+  "notifications": {
+    "push": "പുഷ് അറിയിപ്പുകൾ",
+    "statusUpdates": "റിപ്പോർട്ട് സ്റ്റാറ്റസ് അപ്ഡേറ്റുകൾ",
+    "alerts": "അടിയന്തര മുന്നറിയിപ്പുകൾ"
+  },
+  "legal": {
+    "privacyPolicy": "സ്വകാര്യതാ നയം",
+    "termsOfService": "സേവന നിബന്ധനകൾ"
   },
   "priority": {
     "low": "LOW",

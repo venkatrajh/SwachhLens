@@ -7,7 +7,6 @@ export const BottomNav: React.FC = () => {
   const { t } = useTranslation();
   const location = useLocation();
 
-  // Hide bottom navigation during camera capture, analyzing, or preview steps for full-screen focus
   const hideNavPaths = ['/camera', '/analyzing', '/preview'];
   if (hideNavPaths.some((path) => location.pathname.startsWith(path))) {
     return null;
@@ -15,7 +14,7 @@ export const BottomNav: React.FC = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 max-w-[440px] mx-auto glass-nav px-3 py-2 border-t border-[#DCE7E1] safe-bottom shadow-lg"
+      className="fixed bottom-0 left-0 right-0 z-40 max-w-[440px] mx-auto glass-nav px-3 py-2 border-t border-[#DCE7E1] dark:border-[#294037] safe-bottom shadow-lg"
       aria-label="Bottom Navigation"
     >
       <div className="flex items-center justify-around">
@@ -25,8 +24,8 @@ export const BottomNav: React.FC = () => {
           className={({ isActive }) =>
             `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 ${
               isActive
-                ? 'text-[#168A5B] font-bold'
-                : 'text-[#64736A] hover:text-[#17211B]'
+                ? 'text-[#168A5B] dark:text-[#39B77A] font-bold'
+                : 'text-[#64736A] dark:text-[#A9BBB1] hover:text-[#17211B] dark:hover:text-[#F2F7F4]'
             }`
           }
         >
@@ -34,7 +33,7 @@ export const BottomNav: React.FC = () => {
             <>
               <div
                 className={`p-1 rounded-lg transition-colors ${
-                  isActive ? 'bg-[#EAF6EF]' : 'bg-transparent'
+                  isActive ? 'bg-[#EAF6EF] dark:bg-[#1A2C23]' : 'bg-transparent'
                 }`}
               >
                 <Home className="w-5 h-5 stroke-[2.2]" />
@@ -50,10 +49,10 @@ export const BottomNav: React.FC = () => {
           className="flex flex-col items-center -mt-5 group"
           aria-label="Report Waste"
         >
-          <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-[#0F5132] via-[#168A5B] to-[#22A06B] text-white flex items-center justify-center shadow-floating group-active:scale-95 transition-transform border-4 border-white">
+          <div className="w-13 h-13 rounded-full bg-gradient-to-tr from-[#0F5132] via-[#168A5B] to-[#22A06B] dark:from-[#168A5B] dark:via-[#39B77A] dark:to-[#22A06B] text-white dark:text-[#0D1712] flex items-center justify-center shadow-floating group-active:scale-95 transition-transform border-4 border-white dark:border-[#14221B]">
             <PlusCircle className="w-7 h-7 stroke-[2.5]" />
           </div>
-          <span className="text-[11px] font-bold text-[#168A5B] mt-1">
+          <span className="text-[11px] font-bold text-[#168A5B] dark:text-[#39B77A] mt-1">
             {t('report.title')}
           </span>
         </NavLink>
@@ -64,8 +63,8 @@ export const BottomNav: React.FC = () => {
           className={({ isActive }) =>
             `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 ${
               isActive
-                ? 'text-[#168A5B] font-bold'
-                : 'text-[#64736A] hover:text-[#17211B]'
+                ? 'text-[#168A5B] dark:text-[#39B77A] font-bold'
+                : 'text-[#64736A] dark:text-[#A9BBB1] hover:text-[#17211B] dark:hover:text-[#F2F7F4]'
             }`
           }
         >
@@ -73,7 +72,7 @@ export const BottomNav: React.FC = () => {
             <>
               <div
                 className={`p-1 rounded-lg transition-colors ${
-                  isActive ? 'bg-[#EAF6EF]' : 'bg-transparent'
+                  isActive ? 'bg-[#EAF6EF] dark:bg-[#1A2C23]' : 'bg-transparent'
                 }`}
               >
                 <FileText className="w-5 h-5 stroke-[2.2]" />
@@ -91,8 +90,8 @@ export const BottomNav: React.FC = () => {
           className={({ isActive }) =>
             `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 ${
               isActive
-                ? 'text-[#168A5B] font-bold'
-                : 'text-[#64736A] hover:text-[#17211B]'
+                ? 'text-[#168A5B] dark:text-[#39B77A] font-bold'
+                : 'text-[#64736A] dark:text-[#A9BBB1] hover:text-[#17211B] dark:hover:text-[#F2F7F4]'
             }`
           }
         >
@@ -100,7 +99,7 @@ export const BottomNav: React.FC = () => {
             <>
               <div
                 className={`p-1 rounded-lg transition-colors ${
-                  isActive ? 'bg-[#EAF6EF]' : 'bg-transparent'
+                  isActive ? 'bg-[#EAF6EF] dark:bg-[#1A2C23]' : 'bg-transparent'
                 }`}
               >
                 <User className="w-5 h-5 stroke-[2.2]" />

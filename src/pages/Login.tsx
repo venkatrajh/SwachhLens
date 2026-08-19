@@ -36,21 +36,21 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-[100dvh] flex flex-col justify-between bg-[#F7FAF8]">
+    <div className="relative min-h-[100dvh] flex flex-col justify-between bg-[#F7FAF8] dark:bg-[#0D1712]">
       <TopHeader showBack={true} />
       <NatureBackground />
 
       <div className="relative z-10 px-6 py-4 flex-1 flex flex-col justify-center">
         {/* Title */}
         <div className="mb-6">
-          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#EAF6EF] text-[#168A5B] text-xs font-bold mb-3 border border-[#168A5B]/20">
+          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] text-xs font-bold mb-3 border border-[#168A5B]/20 dark:border-[#39B77A]/30">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Citizen Portal</span>
           </div>
-          <h1 className="text-2xl font-black text-[#17211B] leading-tight">
+          <h1 className="text-2xl font-black text-[#17211B] dark:text-[#F2F7F4] leading-tight">
             {t('common.welcomeBack')}
           </h1>
-          <p className="text-xs text-[#64736A] font-medium mt-1">
+          <p className="text-xs text-[#64736A] dark:text-[#A9BBB1] font-medium mt-1">
             {t('common.helpKeepCityClean')}
           </p>
         </div>
@@ -58,43 +58,43 @@ export const Login: React.FC = () => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-[#17211B] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block mb-1.5">
               {t('common.email')}
             </label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A]" />
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="citizen@example.com"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-[#DCE7E1] text-sm text-[#17211B] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 focus:border-[#168A5B] shadow-xs"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-sm text-[#17211B] dark:text-[#F2F7F4] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 dark:focus:ring-[#39B77A]/40 focus:border-[#168A5B] shadow-xs"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-[#17211B] uppercase tracking-wider">
+              <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider">
                 {t('common.password')}
               </label>
               <button
                 type="button"
-                className="text-xs font-semibold text-[#168A5B] hover:underline"
+                className="text-xs font-semibold text-[#168A5B] dark:text-[#39B77A] hover:underline"
               >
                 {t('common.forgotPassword')}
               </button>
             </div>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A]" />
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-[#DCE7E1] text-sm text-[#17211B] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 focus:border-[#168A5B] shadow-xs"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-sm text-[#17211B] dark:text-[#F2F7F4] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 dark:focus:ring-[#39B77A]/40 focus:border-[#168A5B] shadow-xs"
               />
             </div>
           </div>
@@ -102,7 +102,7 @@ export const Login: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 px-4 rounded-xl bg-[#168A5B] hover:bg-[#13754D] active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-floating transition-all"
+            className="w-full py-3.5 px-4 rounded-xl bg-[#168A5B] hover:bg-[#13754D] dark:bg-[#39B77A] dark:hover:bg-[#2fa069] active:scale-[0.98] text-white dark:text-[#0D1712] font-bold text-sm flex items-center justify-center gap-2 shadow-floating transition-all"
           >
             <span>{isLoading ? t('common.loading') : t('common.signIn')}</span>
             <ArrowRight className="w-4 h-4 stroke-[3]" />
@@ -112,9 +112,9 @@ export const Login: React.FC = () => {
         {/* Divider */}
         <div className="relative my-6 flex items-center justify-center">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#DCE7E1]" />
+            <div className="w-full border-t border-[#DCE7E1] dark:border-[#294037]" />
           </div>
-          <span className="relative bg-[#F7FAF8] px-3 text-[11px] font-bold text-[#64736A] uppercase">
+          <span className="relative bg-[#F7FAF8] dark:bg-[#0D1712] px-3 text-[11px] font-bold text-[#64736A] dark:text-[#A9BBB1] uppercase">
             {t('common.or')}
           </span>
         </div>
@@ -123,7 +123,7 @@ export const Login: React.FC = () => {
         <button
           onClick={handleGoogleSignIn}
           type="button"
-          className="w-full py-3 px-4 rounded-xl bg-white hover:bg-stone-50 active:scale-[0.98] text-[#17211B] font-bold text-xs flex items-center justify-center gap-3 border border-[#DCE7E1] shadow-card transition-all"
+          className="w-full py-3 px-4 rounded-xl bg-white dark:bg-[#14221B] hover:bg-stone-50 dark:hover:bg-[#1A2C23] active:scale-[0.98] text-[#17211B] dark:text-[#F2F7F4] font-bold text-xs flex items-center justify-center gap-3 border border-[#DCE7E1] dark:border-[#294037] shadow-card transition-all"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
             <path
@@ -147,11 +147,11 @@ export const Login: React.FC = () => {
         </button>
 
         {/* Register link */}
-        <div className="mt-6 text-center text-xs text-[#64736A]">
+        <div className="mt-6 text-center text-xs text-[#64736A] dark:text-[#A9BBB1]">
           <span>{t('common.dontHaveAccount')} </span>
           <Link
             to="/register"
-            className="font-bold text-[#168A5B] hover:underline"
+            className="font-bold text-[#168A5B] dark:text-[#39B77A] hover:underline"
           >
             {t('common.createAccount')}
           </Link>

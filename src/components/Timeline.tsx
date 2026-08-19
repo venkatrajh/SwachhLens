@@ -49,13 +49,13 @@ export const Timeline: React.FC<TimelineProps> = ({ status }) => {
   const activeIndex = getActiveIndex(status);
 
   return (
-    <div className="bg-white rounded-2xl p-4 border border-[#DCE7E1] shadow-card">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-[#0F5132] pb-3 border-b border-[#DCE7E1]/80 mb-4">
+    <div className="bg-white dark:bg-[#14221B] rounded-2xl p-4 border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+      <h2 className="text-xs font-bold uppercase tracking-wider text-[#0F5132] dark:text-[#39B77A] pb-3 border-b border-[#DCE7E1]/80 dark:border-[#294037] mb-4">
         {t('reportDetails.timelineTitle')}
       </h2>
 
       <div className="relative pl-6 space-y-6">
-        <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#DCE7E1]" />
+        <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-[#DCE7E1] dark:bg-[#294037]" />
 
         {STEPS.map((step, index) => {
           const isDone = index < activeIndex || (index === 4 && (status === 'completed' || status === 'verified'));
@@ -66,16 +66,16 @@ export const Timeline: React.FC<TimelineProps> = ({ status }) => {
               <div
                 className={`absolute -left-[23px] w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
                   isDone
-                    ? 'bg-[#168A5B] border-[#168A5B] text-white shadow-xs'
+                    ? 'bg-[#168A5B] dark:bg-[#39B77A] border-[#168A5B] dark:border-[#39B77A] text-white dark:text-[#0D1712] shadow-xs'
                     : isCurrent
-                    ? 'bg-white border-[#168A5B] text-[#168A5B] ring-4 ring-[#EAF6EF]'
-                    : 'bg-white border-[#DCE7E1] text-[#64736A]'
+                    ? 'bg-white dark:bg-[#14221B] border-[#168A5B] dark:border-[#39B77A] text-[#168A5B] dark:text-[#39B77A] ring-4 ring-[#EAF6EF] dark:ring-[#1A2C23]'
+                    : 'bg-white dark:bg-[#14221B] border-[#DCE7E1] dark:border-[#294037] text-[#64736A] dark:text-[#A9BBB1]'
                 }`}
               >
                 {isDone ? (
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 ) : isCurrent ? (
-                  <div className="w-2 h-2 rounded-full bg-[#168A5B] animate-pulse" />
+                  <div className="w-2 h-2 rounded-full bg-[#168A5B] dark:bg-[#39B77A] animate-pulse" />
                 ) : (
                   <Circle className="w-2.5 h-2.5 fill-transparent stroke-[1.5]" />
                 )}
@@ -85,14 +85,14 @@ export const Timeline: React.FC<TimelineProps> = ({ status }) => {
                 <span
                   className={`text-xs block leading-tight ${
                     isDone || isCurrent
-                      ? 'font-bold text-[#17211B]'
-                      : 'text-[#64736A] font-medium'
+                      ? 'font-bold text-[#17211B] dark:text-[#F2F7F4]'
+                      : 'text-[#64736A] dark:text-[#A9BBB1] font-medium'
                   }`}
                 >
                   {t(step.labelKey, step.defaultLabel)}
                 </span>
                 {isCurrent && (
-                  <span className="text-[10px] text-[#168A5B] font-semibold flex items-center gap-1 mt-0.5">
+                  <span className="text-[10px] text-[#168A5B] dark:text-[#39B77A] font-semibold flex items-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3" />
                     <span>In progress</span>
                   </span>

@@ -13,6 +13,18 @@
   --border: #DCE7E1;
 }
 
+.dark {
+  --primary: #39B77A;
+  --secondary: #22A06B;
+  --deepforest: #0F5132;
+  --text-primary: #F2F7F4;
+  --text-secondary: #A9BBB1;
+  --background: #0D1712;
+  --surface: #14221B;
+  --light-green: #1A2C23;
+  --border: #294037;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -23,12 +35,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glassmorphism accents */
+/* Glassmorphism accents (Light & Dark) */
 .glass-nav {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid rgba(220, 231, 225, 0.7);
+}
+
+.dark .glass-nav {
+  background: rgba(20, 34, 27, 0.88);
+  border-top: 1px solid rgba(41, 64, 55, 0.8);
 }
 
 .glass-card {
@@ -38,6 +55,11 @@ body {
   border: 1px solid rgba(220, 231, 225, 0.8);
 }
 
+.dark .glass-card {
+  background: rgba(20, 34, 27, 0.92);
+  border: 1px solid rgba(41, 64, 55, 0.8);
+}
+
 .glass-cta {
   background: linear-gradient(135deg, rgba(22, 138, 91, 0.95), rgba(15, 81, 50, 0.95));
   backdrop-filter: blur(8px);
@@ -45,11 +67,21 @@ body {
   box-shadow: 0 10px 25px -4px rgba(22, 138, 91, 0.35);
 }
 
+.dark .glass-cta {
+  background: linear-gradient(135deg, rgba(57, 183, 122, 0.95), rgba(22, 138, 91, 0.95));
+  box-shadow: 0 10px 25px -4px rgba(57, 183, 122, 0.25);
+}
+
 .glass-pill {
   background: rgba(234, 246, 239, 0.85);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(220, 231, 225, 0.7);
+  border: 1px solid rgba(22, 138, 91, 0.18);
+}
+
+.dark .glass-pill {
+  background: rgba(26, 44, 35, 0.85);
+  border: 1px solid rgba(57, 183, 122, 0.25);
 }
 
 /* Safe area insets for mobile PWAs */
@@ -135,4 +167,7 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #DCE7E1;
   border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #294037;
 }

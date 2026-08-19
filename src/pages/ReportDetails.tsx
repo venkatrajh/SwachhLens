@@ -39,7 +39,7 @@ export const ReportDetails: React.FC = () => {
 
   if (isLoading || !report) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7FAF8] text-xs text-[#64736A]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F7FAF8] dark:bg-[#0D1712] text-xs text-[#64736A] dark:text-[#A9BBB1]">
         {t('common.loading')}
       </div>
     );
@@ -50,7 +50,7 @@ export const ReportDetails: React.FC = () => {
     report.status.toLowerCase() === 'verified';
 
   return (
-    <div className="relative min-h-screen bg-[#F7FAF8] flex flex-col pb-12">
+    <div className="relative min-h-screen bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col pb-12">
       <TopHeader
         title={report.id}
         subtitle={report.waste_type}
@@ -61,7 +61,7 @@ export const ReportDetails: React.FC = () => {
       <div className="relative z-10 px-4 py-3 space-y-4">
         {/* Main Photo Card */}
         {report.image_url && (
-          <div className="relative rounded-3xl overflow-hidden bg-black aspect-[16/10] border border-[#DCE7E1] shadow-card">
+          <div className="relative rounded-3xl overflow-hidden bg-black aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card">
             <img
               src={report.image_url}
               alt={report.waste_type}
@@ -86,15 +86,16 @@ export const ReportDetails: React.FC = () => {
             location={{
               latitude: report.latitude,
               longitude: report.longitude,
+              source: 'current',
             }}
           />
 
-          <div className="p-3 bg-white rounded-xl border border-[#DCE7E1] shadow-card flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#64736A]">
-              <Clock className="w-4 h-4 text-[#168A5B]" />
+          <div className="p-3 bg-white dark:bg-[#14221B] rounded-xl border border-[#DCE7E1] dark:border-[#294037] shadow-card flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-[#64736A] dark:text-[#A9BBB1]">
+              <Clock className="w-4 h-4 text-[#168A5B] dark:text-[#39B77A]" />
               <span className="font-semibold">{t('report.timestampAuto')}:</span>
             </div>
-            <span className="font-mono text-[#17211B] font-bold text-[11px]">
+            <span className="font-mono text-[#17211B] dark:text-[#F2F7F4] font-bold text-[11px]">
               {new Date(report.timestamp).toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
@@ -103,21 +104,21 @@ export const ReportDetails: React.FC = () => {
           </div>
 
           {report.description && (
-            <div className="p-3.5 bg-white rounded-xl border border-[#DCE7E1] shadow-card">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64736A] block mb-1">
+            <div className="p-3.5 bg-white dark:bg-[#14221B] rounded-xl border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64736A] dark:text-[#A9BBB1] block mb-1">
                 Citizen Note
               </span>
-              <p className="text-xs text-[#17211B] leading-relaxed">
+              <p className="text-xs text-[#17211B] dark:text-[#F2F7F4] leading-relaxed">
                 {report.description}
               </p>
             </div>
           )}
         </div>
 
-        {/* 5-Stage Civic Resolution Timeline (Section 28) */}
+        {/* 5-Stage Civic Resolution Timeline */}
         <Timeline status={report.status} />
 
-        {/* Before / After Cleanup Verification Card (Section 29) */}
+        {/* Before / After Cleanup Verification Card */}
         {isResolved && (
           <VerificationCard
             beforeImage={report.before_image_url || report.image_url}
@@ -126,17 +127,17 @@ export const ReportDetails: React.FC = () => {
           />
         )}
 
-        {/* AI Analysis Breakdown (Section 25) */}
+        {/* AI Analysis Breakdown */}
         <AIResultCard report={report} />
 
-        {/* Recommended Municipal Response (Section 25) */}
+        {/* Recommended Municipal Response */}
         <DecisionCard report={report} />
 
         {/* Back to Reports Action Button */}
         <div className="pt-2">
           <button
             onClick={() => navigate('/reports')}
-            className="w-full py-3.5 px-4 rounded-xl bg-white hover:bg-stone-50 active:scale-[0.98] text-[#17211B] font-bold text-xs flex items-center justify-center gap-2 border border-[#DCE7E1] shadow-card transition-all"
+            className="w-full py-3.5 px-4 rounded-xl bg-white dark:bg-[#14221B] hover:bg-stone-50 dark:hover:bg-[#1A2C23] active:scale-[0.98] text-[#17211B] dark:text-[#F2F7F4] font-bold text-xs flex items-center justify-center gap-2 border border-[#DCE7E1] dark:border-[#294037] shadow-card transition-all"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>{t('common.backToReports')}</span>

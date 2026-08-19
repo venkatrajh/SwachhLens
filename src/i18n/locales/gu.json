@@ -22,7 +22,7 @@
     "settings": "સેટિંગ્સ",
     "language": "ભાષા",
     "selectLanguage": "ભાષા પસંદ કરો",
-    "save": "સાચવો",
+    "save": "ફેરફારો સાચવો",
     "cancel": "રદ કરો",
     "back": "પાછા જાઓ",
     "backToHome": "હોમ પર પાછા જાઓ",
@@ -63,6 +63,13 @@
     "mediaRequired": "કૃપા કરીને પહેલા ફોટો લો અથવા પસંદ કરો",
     "switchCamera": "કેમેરો બદલો",
     "capture": "કેપ્ચર"
+  },
+  "location": {
+    "title": "કચરાનું સ્થાન",
+    "useCurrentLocation": "હાલનું સ્થાન",
+    "selectOnMap": "નકશા પર પસંદ કરો",
+    "confirmLocation": "આ સ્થાન વાપરો",
+    "locationSelected": "નકશા પર પસંદ કરેલ"
   },
   "analyzing": {
     "title": "તમારા રિપોર્ટનું વિશ્લેષણ થઈ રહ્યું છે...",
@@ -121,18 +128,48 @@
     "status": "સ્થિતિ"
   },
   "profile": {
-    "title": "પ્રોફાઇલ",
+    "title": "પ્રોફાઇલ અને સેટિંગ્સ",
     "citizenAccount": "નાગરિક ખાતું",
     "reportsSubmitted": "સબમિટ કરેલા રિપોર્ટ્સ",
     "issuesResolved": "ઉકેલાયેલી સમસ્યાઓ",
     "ward": "વોર્ડ / ઝોન",
     "phone": "ફોન",
+    "edit": "સંપાદિત કરો",
+    "editProfile": "પ્રોફાઇલ સંપાદિત કરો",
+    "saveChanges": "ફેરફારો સાચવો",
     "settings": "સેટિંગ્સ",
     "language": "ભાષા",
     "about": "SwachhLens વિશે",
     "aboutDesc": "SwachhLens એ સ્માર્ટ નાગરિક કચરા વ્યવસ્થાપન માટે AI-આધારિત સિસ્ટમ છે.",
     "signOut": "સાઇન આઉટ",
     "demoMode": "ડેમો મોડ સક્રિય છે"
+  },
+  "settings": {
+    "account": "ખાતું",
+    "preferences": "પસંદગીઓ",
+    "appearance": "થીમ (Appearance)",
+    "lightMode": "લાઇટ મોડ",
+    "darkMode": "ડાર્ક મોડ",
+    "systemMode": "સિસ્ટમ પસંદગી",
+    "changePassword": "પાસવર્ડ બદલો",
+    "updatePassword": "પાસવર્ડ અપડેટ કરો",
+    "deleteAccount": "ખાતું કાઢી નાખો",
+    "deleteAccountTitle": "નાગરિક ખાતું કાઢી નાખો",
+    "deleteAccountWarning": "ખાતું કાઢી નાખવું કાયમી છે. તમારો ડેટા પુનઃપ્રાપ્ત કરી શકાશે નહીં.",
+    "confirmDelete": "ખાતું કાઢી નાખો",
+    "notifications": "સૂચનાઓ (Notifications)",
+    "securityPrivacy": "સુરક્ષા અને ગોપનીયતા",
+    "securityOverview": "સુરક્ષા વિહંગાવલોકન",
+    "legal": "કાનૂની અને નિયમો"
+  },
+  "notifications": {
+    "push": "પુશ સૂચનાઓ",
+    "statusUpdates": "રિપોર્ટ સ્થિતિ અપડેટ્સ",
+    "alerts": "તાત્કાલિક ચેતવણીઓ"
+  },
+  "legal": {
+    "privacyPolicy": "ગોપનીયતા નીતિ",
+    "termsOfService": "સેવાની શરતો"
   },
   "priority": {
     "low": "LOW",

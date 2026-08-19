@@ -64,28 +64,28 @@ export const Analyzing: React.FC = () => {
   }, [navigate]);
 
   return (
-    <div className="relative min-h-[100dvh] bg-[#F7FAF8] flex flex-col justify-between p-6 overflow-hidden">
+    <div className="relative min-h-[100dvh] bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col justify-between p-6 overflow-hidden">
       <NatureBackground />
 
       <div className="relative z-10 flex flex-col items-center pt-8">
-        <div className="w-16 h-16 rounded-2xl bg-[#EAF6EF] text-[#168A5B] flex items-center justify-center shadow-xs border border-[#168A5B]/20 mb-4 animate-pulse-subtle">
+        <div className="w-16 h-16 rounded-2xl bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center shadow-xs border border-[#168A5B]/20 dark:border-[#39B77A]/20 mb-4 animate-pulse-subtle">
           <ShieldCheck className="w-9 h-9 stroke-[2.2]" />
         </div>
-        <h1 className="text-xl font-black text-[#0F5132] tracking-tight text-center">
+        <h1 className="text-xl font-black text-[#0F5132] dark:text-[#39B77A] tracking-tight text-center">
           {t('analyzing.title')}
         </h1>
-        <p className="text-xs text-[#64736A] font-medium text-center mt-1 max-w-[260px]">
+        <p className="text-xs text-[#64736A] dark:text-[#A9BBB1] font-medium text-center mt-1 max-w-[260px]">
           {t('analyzing.aiSubtitle')}
         </p>
       </div>
 
-      <div className="relative z-10 my-auto bg-white/95 backdrop-blur-md rounded-3xl p-6 border border-[#DCE7E1] shadow-floating space-y-5">
+      <div className="relative z-10 my-auto bg-white/95 dark:bg-[#14221B]/95 backdrop-blur-md rounded-3xl p-6 border border-[#DCE7E1] dark:border-[#294037] shadow-floating space-y-5">
         <div className="flex items-center gap-3.5">
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               step >= 1
-                ? 'bg-[#168A5B] text-white shadow-xs'
-                : 'bg-stone-100 text-stone-400'
+                ? 'bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] shadow-xs'
+                : 'bg-stone-100 dark:bg-stone-800 text-stone-400'
             }`}
           >
             {step >= 1 ? (
@@ -97,7 +97,7 @@ export const Analyzing: React.FC = () => {
           <div>
             <span
               className={`text-sm block ${
-                step >= 1 ? 'font-bold text-[#17211B]' : 'text-[#64736A]'
+                step >= 1 ? 'font-bold text-[#17211B] dark:text-[#F2F7F4]' : 'text-[#64736A] dark:text-[#A9BBB1]'
               }`}
             >
               {t('analyzing.step1')}
@@ -109,10 +109,10 @@ export const Analyzing: React.FC = () => {
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               step > 2
-                ? 'bg-[#168A5B] text-white shadow-xs'
+                ? 'bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] shadow-xs'
                 : step === 2
-                ? 'bg-[#EAF6EF] text-[#168A5B] ring-4 ring-[#EAF6EF]'
-                : 'bg-stone-100 text-stone-400'
+                ? 'bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] ring-4 ring-[#EAF6EF] dark:ring-[#1A2C23]'
+                : 'bg-stone-100 dark:bg-stone-800 text-stone-400'
             }`}
           >
             {step > 2 ? (
@@ -126,7 +126,7 @@ export const Analyzing: React.FC = () => {
           <div>
             <span
               className={`text-sm block ${
-                step >= 2 ? 'font-bold text-[#17211B]' : 'text-[#64736A]'
+                step >= 2 ? 'font-bold text-[#17211B] dark:text-[#F2F7F4]' : 'text-[#64736A] dark:text-[#A9BBB1]'
               }`}
             >
               {t('analyzing.step2')}
@@ -138,8 +138,8 @@ export const Analyzing: React.FC = () => {
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               step === 3
-                ? 'bg-[#168A5B] text-white shadow-xs'
-                : 'bg-stone-100 text-stone-400'
+                ? 'bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] shadow-xs'
+                : 'bg-stone-100 dark:bg-stone-800 text-stone-400'
             }`}
           >
             {step === 3 ? (
@@ -151,7 +151,7 @@ export const Analyzing: React.FC = () => {
           <div>
             <span
               className={`text-sm block ${
-                step === 3 ? 'font-bold text-[#17211B]' : 'text-[#64736A]'
+                step === 3 ? 'font-bold text-[#17211B] dark:text-[#F2F7F4]' : 'text-[#64736A] dark:text-[#A9BBB1]'
               }`}
             >
               {t('analyzing.step3')}
@@ -161,7 +161,7 @@ export const Analyzing: React.FC = () => {
       </div>
 
       {error && (
-        <div className="relative z-10 p-4 bg-red-50 text-red-800 rounded-2xl border border-red-200 text-xs text-center space-y-2">
+        <div className="relative z-10 p-4 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 rounded-2xl border border-red-200 dark:border-red-900/60 text-xs text-center space-y-2">
           <p>{error}</p>
           <button
             onClick={() => navigate('/report')}
@@ -173,8 +173,8 @@ export const Analyzing: React.FC = () => {
       )}
 
       <div className="relative z-10 text-center pb-2">
-        <span className="text-[11px] font-semibold text-[#64736A] flex items-center justify-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-[#168A5B]" />
+        <span className="text-[11px] font-semibold text-[#64736A] dark:text-[#A9BBB1] flex items-center justify-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-[#168A5B] dark:text-[#39B77A]" />
           <span>SwachhLens Civic Decision Engine</span>
         </span>
       </div>

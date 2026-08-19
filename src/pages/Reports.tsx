@@ -51,31 +51,31 @@ export const Reports: React.FC = () => {
   });
 
   return (
-    <div className="relative min-h-screen bg-[#F7FAF8] flex flex-col">
+    <div className="relative min-h-screen bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col">
       <TopHeader title={t('reportsList.title')} showBack={false} />
       <NatureBackground />
 
       <div className="relative z-10 px-4 py-3 space-y-3.5">
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A]" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by ID, waste type..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#DCE7E1] text-xs text-[#17211B] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 focus:border-[#168A5B] shadow-xs placeholder-[#64736A]/60"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-xs text-[#17211B] dark:text-[#F2F7F4] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 dark:focus:ring-[#39B77A]/40 focus:border-[#168A5B] shadow-xs placeholder-[#64736A]/60 dark:placeholder-[#A9BBB1]/60"
           />
         </div>
 
-        <div className="flex p-1 bg-stone-200/60 rounded-xl">
+        <div className="flex p-1 bg-stone-200/60 dark:bg-[#1A2C23] rounded-xl">
           {(['all', 'active', 'completed'] as FilterTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${
                 activeTab === tab
-                  ? 'bg-white text-[#168A5B] shadow-xs'
-                  : 'text-[#64736A] hover:text-[#17211B]'
+                  ? 'bg-white dark:bg-[#14221B] text-[#168A5B] dark:text-[#39B77A] shadow-xs'
+                  : 'text-[#64736A] dark:text-[#A9BBB1] hover:text-[#17211B] dark:hover:text-[#F2F7F4]'
               }`}
             >
               {tab === 'all'
@@ -88,8 +88,8 @@ export const Reports: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="py-12 text-center text-xs text-[#64736A] flex flex-col items-center gap-2">
-            <RefreshCw className="w-5 h-5 animate-spin text-[#168A5B]" />
+          <div className="py-12 text-center text-xs text-[#64736A] dark:text-[#A9BBB1] flex flex-col items-center gap-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-[#168A5B] dark:text-[#39B77A]" />
             <span>{t('common.loading')}</span>
           </div>
         ) : filteredReports.length > 0 ? (
@@ -99,11 +99,11 @@ export const Reports: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="py-12 px-4 text-center bg-white rounded-2xl border border-dashed border-[#DCE7E1] space-y-2">
-            <div className="w-10 h-10 rounded-full bg-[#EAF6EF] text-[#168A5B] flex items-center justify-center mx-auto">
+          <div className="py-12 px-4 text-center bg-white dark:bg-[#14221B] rounded-2xl border border-dashed border-[#DCE7E1] dark:border-[#294037] space-y-2">
+            <div className="w-10 h-10 rounded-full bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center mx-auto">
               <FileText className="w-5 h-5" />
             </div>
-            <p className="text-xs text-[#64736A] font-medium">
+            <p className="text-xs text-[#64736A] dark:text-[#A9BBB1] font-medium">
               {activeTab === 'active'
                 ? t('reportsList.emptyActive')
                 : activeTab === 'completed'

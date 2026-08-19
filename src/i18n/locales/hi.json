@@ -22,7 +22,7 @@
     "settings": "सेटिंग्स",
     "language": "भाषा",
     "selectLanguage": "भाषा चुनें",
-    "save": "सहेजें",
+    "save": "परिवर्तन सहेजें",
     "cancel": "रद्द करें",
     "back": "वापस",
     "backToHome": "होम पर वापस जाएं",
@@ -63,6 +63,13 @@
     "mediaRequired": "कृपया पहले एक फोटो लें या चुनें",
     "switchCamera": "कैमरा बदलें",
     "capture": "कैप्चर"
+  },
+  "location": {
+    "title": "कचरे का स्थान",
+    "useCurrentLocation": "वर्तमान स्थान",
+    "selectOnMap": "मानचित्र पर चुनें",
+    "confirmLocation": "यह स्थान चुनें",
+    "locationSelected": "मानचित्र पर चुना गया"
   },
   "analyzing": {
     "title": "आपकी रिपोर्ट का विश्लेषण किया जा रहा है...",
@@ -121,18 +128,48 @@
     "status": "स्थिति"
   },
   "profile": {
-    "title": "प्रोफ़ाइल",
+    "title": "प्रोफ़ाइल एवं सेटिंग्स",
     "citizenAccount": "नागरिक खाता",
     "reportsSubmitted": "सबमिट की गई रिपोर्ट्स",
     "issuesResolved": "हल की गई समस्याएं",
     "ward": "वार्ड / जोन",
     "phone": "फोन",
+    "edit": "संपादित करें",
+    "editProfile": "प्रोफ़ाइल संपादित करें",
+    "saveChanges": "परिवर्तन सहेजें",
     "settings": "सेटिंग्स",
     "language": "भाषा",
     "about": "SwachhLens के बारे में",
     "aboutDesc": "SwachhLens एक AI-आधारित कचरा प्रतिक्रिया निर्णय प्रणाली है जिसे स्वच्छ भारत के लिए बनाया गया है।",
     "signOut": "साइन आउट",
     "demoMode": "डेमो मोड सक्रिय है"
+  },
+  "settings": {
+    "account": "खाता",
+    "preferences": "प्राथमिकताएं",
+    "appearance": "दिखावट (थीम)",
+    "lightMode": "लाइट मोड",
+    "darkMode": "डार्क मोड",
+    "systemMode": "सिस्टम प्राथमिकता",
+    "changePassword": "पासवर्ड बदलें",
+    "updatePassword": "पासवर्ड अपडेट करें",
+    "deleteAccount": "खाता हटाएं",
+    "deleteAccountTitle": "नागरिक खाता हटाएं",
+    "deleteAccountWarning": "खाता हटाना स्थायी है। आपका डेटा पुनः प्राप्त नहीं किया जा सकेगा।",
+    "confirmDelete": "खाता हटाएं",
+    "notifications": "सूचनाएं (Notifications)",
+    "securityPrivacy": "सुरक्षा और गोपनीयता",
+    "securityOverview": "सुरक्षा अवलोकन",
+    "legal": "कानूनी व नियम"
+  },
+  "notifications": {
+    "push": "पुश सूचनाएं",
+    "statusUpdates": "रिपोर्ट स्थिति अपडेट",
+    "alerts": "आपातकालीन अलर्ट"
+  },
+  "legal": {
+    "privacyPolicy": "गोपनीयता नीति",
+    "termsOfService": "सेवा की शर्तें"
   },
   "priority": {
     "low": "LOW",

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { TopHeader } from '../components/layout/TopHeader';
 import { NatureBackground } from '../components/layout/NatureBackground';
 import { LocationCard } from '../components/LocationCard';
+import { MapLocationPicker } from '../components/MapLocationPicker';
 import { locationService } from '../services/locationService';
 import { cameraService } from '../services/cameraService';
 import type { LocationData } from '../types/report';
@@ -30,6 +31,7 @@ export const ReportWaste: React.FC = () => {
   const [location, setLocation] = useState<LocationData | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(true);
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState<boolean>(false);
 
   const [timestamp, setTimestamp] = useState<string>(new Date().toISOString());
 
@@ -38,7 +40,11 @@ export const ReportWaste: React.FC = () => {
 
   useEffect(() => {
     setTimestamp(new Date().toISOString());
-    captureLocation();
+
+    // Only auto-capture if location is not yet set
+    if (!location) {
+      captureLocation();
+    }
 
     const pendingCameraPhoto = sessionStorage.getItem('swachhlens_captured_photo');
     if (pendingCameraPhoto) {
@@ -60,6 +66,12 @@ export const ReportWaste: React.FC = () => {
     } finally {
       setIsDetectingLocation(false);
     }
+  };
+
+  const handleConfirmMapLocation = (chosenLoc: LocationData) => {
+    setLocation(chosenLoc);
+    setIsMapPickerOpen(false);
+    setLocationError(null);
   };
 
   const handleGalleryChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,17 +120,26 @@ export const ReportWaste: React.FC = () => {
     };
 
     sessionStorage.setItem('swachhlens_pending_report', JSON.stringify(reportPayload));
-    navigate('/analyzing');
+    navigate('/preview');
   };
 
   return (
-    <div className="relative min-h-[100dvh] bg-[#F7FAF8] flex flex-col">
+    <div className="relative min-h-[100dvh] bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col">
       <TopHeader
         title={t('report.title')}
         subtitle={t('report.subtitle')}
         showBack={true}
       />
       <NatureBackground />
+
+      {/* Interactive Map Location Picker Modal */}
+      {isMapPickerOpen && (
+        <MapLocationPicker
+          initialLocation={location}
+          onConfirm={handleConfirmMapLocation}
+          onCancel={() => setIsMapPickerOpen(false)}
+        />
+      )}
 
       <input
         type="file"
@@ -142,12 +163,12 @@ export const ReportWaste: React.FC = () => {
       >
         <div className="space-y-4">
           <div className="space-y-2">
-            <span className="text-xs font-bold text-[#17211B] uppercase tracking-wider block">
+            <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block">
               Waste Evidence (Photo / Video) *
             </span>
 
             {selectedImage ? (
-              <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border-2 border-[#168A5B] shadow-md group">
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border-2 border-[#168A5B] dark:border-[#39B77A] shadow-md group">
                 <img
                   src={selectedImage}
                   alt="Captured Waste"
@@ -165,7 +186,7 @@ export const ReportWaste: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/camera')}
-                    className="flex-1 py-2 px-3 rounded-xl bg-white/90 backdrop-blur-md text-[#17211B] text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                    className="flex-1 py-2 px-3 rounded-xl bg-white/90 dark:bg-[#14221B]/90 backdrop-blur-md text-[#17211B] dark:text-[#F2F7F4] text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>{t('report.replaceMedia')}</span>
@@ -173,7 +194,7 @@ export const ReportWaste: React.FC = () => {
                 </div>
               </div>
             ) : selectedVideo ? (
-              <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border-2 border-[#168A5B] shadow-md">
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border-2 border-[#168A5B] dark:border-[#39B77A] shadow-md">
                 <video
                   src={selectedVideo}
                   controls
@@ -193,12 +214,12 @@ export const ReportWaste: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/camera')}
-                  className="p-3.5 rounded-2xl bg-white hover:bg-[#EAF6EF] border-2 border-dashed border-[#168A5B]/50 flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#14221B] hover:bg-[#EAF6EF] dark:hover:bg-[#1A2C23] border-2 border-dashed border-[#168A5B]/50 dark:border-[#39B77A]/50 flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#EAF6EF] text-[#168A5B] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-11 h-11 rounded-xl bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center group-hover:scale-110 transition-transform">
                     <Camera className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-xs font-bold text-[#17211B] leading-tight">
+                  <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] leading-tight">
                     {t('report.takePhoto')}
                   </span>
                 </button>
@@ -206,12 +227,12 @@ export const ReportWaste: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="p-3.5 rounded-2xl bg-white hover:bg-[#F7FAF8] border border-[#DCE7E1] flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#14221B] hover:bg-[#F7FAF8] dark:hover:bg-[#1A2C23] border border-[#DCE7E1] dark:border-[#294037] flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                     <ImageIcon className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-xs font-bold text-[#17211B] leading-tight">
+                  <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] leading-tight">
                     {t('report.chooseGallery')}
                   </span>
                 </button>
@@ -219,12 +240,12 @@ export const ReportWaste: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="p-3.5 rounded-2xl bg-white hover:bg-[#F7FAF8] border border-[#DCE7E1] flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#14221B] hover:bg-[#F7FAF8] dark:hover:bg-[#1A2C23] border border-[#DCE7E1] dark:border-[#294037] flex flex-col items-center justify-center gap-2 text-center shadow-xs active:scale-95 transition-all group"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                     <Video className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-xs font-bold text-[#17211B] leading-tight">
+                  <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] leading-tight">
                     {t('report.addVideo')}
                   </span>
                 </button>
@@ -232,31 +253,34 @@ export const ReportWaste: React.FC = () => {
             )}
 
             {mediaError && (
-              <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1">
+              <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-semibold mt-1">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{mediaError}</span>
               </div>
             )}
           </div>
 
+          {/* Location Selection with GPS and Map options */}
           <div className="space-y-1.5">
-            <span className="text-xs font-bold text-[#17211B] uppercase tracking-wider block">
-              GPS Location (Auto-captured)
+            <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block">
+              {t('location.title', 'Report Location')}
             </span>
             <LocationCard
               location={location}
               error={locationError}
               isLoading={isDetectingLocation}
               onRetry={captureLocation}
+              onUseCurrentLocation={captureLocation}
+              onSelectOnMap={() => setIsMapPickerOpen(true)}
             />
           </div>
 
-          <div className="p-3 bg-[#F7FAF8] rounded-xl border border-[#DCE7E1] flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#64736A]">
-              <Clock className="w-4 h-4 text-[#168A5B]" />
+          <div className="p-3 bg-[#F7FAF8] dark:bg-[#14221B] rounded-xl border border-[#DCE7E1] dark:border-[#294037] flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-[#64736A] dark:text-[#A9BBB1]">
+              <Clock className="w-4 h-4 text-[#168A5B] dark:text-[#39B77A]" />
               <span className="font-semibold">{t('report.timestampAuto')}:</span>
             </div>
-            <span className="font-mono text-[#17211B] font-bold text-[11px]">
+            <span className="font-mono text-[#17211B] dark:text-[#F2F7F4] font-bold text-[11px]">
               {new Date(timestamp).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -266,7 +290,7 @@ export const ReportWaste: React.FC = () => {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#17211B] uppercase tracking-wider block">
+            <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block">
               Description (Optional)
             </label>
             <textarea
@@ -274,7 +298,7 @@ export const ReportWaste: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('report.descriptionPlaceholder')}
-              className="w-full p-3 rounded-xl bg-white border border-[#DCE7E1] text-sm text-[#17211B] placeholder-[#64736A]/60 focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 focus:border-[#168A5B] shadow-xs resize-none"
+              className="w-full p-3 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-sm text-[#17211B] dark:text-[#F2F7F4] placeholder-[#64736A]/60 dark:placeholder-[#A9BBB1]/60 focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 focus:border-[#168A5B] shadow-xs resize-none"
             />
           </div>
         </div>
@@ -282,7 +306,7 @@ export const ReportWaste: React.FC = () => {
         <div className="pt-4 pb-2">
           <button
             type="submit"
-            className="w-full py-4 px-6 rounded-2xl bg-[#168A5B] hover:bg-[#13754D] active:scale-[0.98] text-white font-extrabold text-base flex items-center justify-center gap-2 shadow-floating transition-all"
+            className="w-full py-4 px-6 rounded-2xl bg-[#168A5B] hover:bg-[#13754D] dark:bg-[#39B77A] dark:hover:bg-[#2fa069] active:scale-[0.98] text-white dark:text-[#0D1712] font-extrabold text-base flex items-center justify-center gap-2 shadow-floating transition-all"
           >
             <Send className="w-5 h-5 stroke-[2.5]" />
             <span>{t('report.submitReport')}</span>

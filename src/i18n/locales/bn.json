@@ -22,7 +22,7 @@
     "settings": "সেটিংস",
     "language": "ভাষা",
     "selectLanguage": "ভাষা নির্বাচন করুন",
-    "save": "সংরক্ষণ করুন",
+    "save": "পরিবর্তন সংরক্ষণ করুন",
     "cancel": "বাতিল করুন",
     "back": "ফিরে যান",
     "backToHome": "হোমে ফিরে যান",
@@ -63,6 +63,13 @@
     "mediaRequired": "দয়া করে প্রথমে একটি ছবি তুলুন বা বেছে নিন",
     "switchCamera": "ক্যামেরা পরিবর্তন করুন",
     "capture": "ক্যাপচার"
+  },
+  "location": {
+    "title": "বর্জ্যের অবস্থান",
+    "useCurrentLocation": "বর্তমান অবস্থান",
+    "selectOnMap": "মানচিত্রে নির্বাচন করুন",
+    "confirmLocation": "এই অবস্থান ব্যবহার করুন",
+    "locationSelected": "মানচিত্রে নির্বাচিত"
   },
   "analyzing": {
     "title": "আপনার রিপোর্ট বিশ্লেষণ করা হচ্ছে...",
@@ -121,18 +128,48 @@
     "status": "অবস্থা"
   },
   "profile": {
-    "title": "প্রোফাইল",
+    "title": "প্রোফাইল এবং সেটিংস",
     "citizenAccount": "নাগরিক অ্যাকাউন্ট",
     "reportsSubmitted": "জমা দেওয়া রিপোর্ট",
     "issuesResolved": "সমাধান করা সমস্যা",
     "ward": "ওয়ার্ড / অঞ্চল",
     "phone": "ফোন",
+    "edit": "সম্পাদনা",
+    "editProfile": "প্রোফাইল সম্পাদনা করুন",
+    "saveChanges": "পরিবর্তন সংরক্ষণ করুন",
     "settings": "সেটিংস",
     "language": "ভাষা",
     "about": "SwachhLens সম্পর্কে",
     "aboutDesc": "SwachhLens হল স্মার্ট নাগরিক বর্জ্য ব্যবস্থাপনার জন্য তৈরি একটি AI সিদ্ধান্ত গ্রহণ ব্যবস্থা।",
     "signOut": "সাইন আউট",
     "demoMode": "ডেমো মোড সক্রিয়"
+  },
+  "settings": {
+    "account": "অ্যাকাউন্ট",
+    "preferences": "পছন্দসমূহ",
+    "appearance": "উপস্থিতি (Theme)",
+    "lightMode": "লাইট মোড",
+    "darkMode": "ডার্ক মোড",
+    "systemMode": "সিস্টেম পছন্দ",
+    "changePassword": "পাসওয়ার্ড পরিবর্তন",
+    "updatePassword": "পাসওয়ার্ড আপডেট করুন",
+    "deleteAccount": "অ্যাকাউন্ট মুছুন",
+    "deleteAccountTitle": "নাগরিক অ্যাকাউন্ট মুছুন",
+    "deleteAccountWarning": "অ্যাকাউন্ট মোছা স্থায়ী। আপনার ডেটা আর পুনরুদ্ধার করা যাবে না।",
+    "confirmDelete": "অ্যাকাউন্ট মুছুন",
+    "notifications": "বিজ্ঞপ্তি (Notifications)",
+    "securityPrivacy": "নিরাপত্তা ও গোপনীয়তা",
+    "securityOverview": "নিরাপত্তা নির্দেশিকা",
+    "legal": "আইনি তথ্য"
+  },
+  "notifications": {
+    "push": "পুশ বিজ্ঞপ্তি",
+    "statusUpdates": "রিপোর্ট স্ট্যাটাস আপডেট",
+    "alerts": "জরুরি সতর্কতা"
+  },
+  "legal": {
+    "privacyPolicy": "গোপনীয়তা নীতি",
+    "termsOfService": "পরিষেবার শর্তাবলী"
   },
   "priority": {
     "low": "LOW",

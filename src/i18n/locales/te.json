@@ -22,7 +22,7 @@
     "settings": "సెట్టింగ్‌లు",
     "language": "భాష",
     "selectLanguage": "భాషను ఎంచుకోండి",
-    "save": "సేవ్ చేయండి",
+    "save": "మార్పులను సేవ్ చేయండి",
     "cancel": "రద్దు చేయండి",
     "back": "వెనుకకు",
     "backToHome": "హోమ్‌కు తిరిగి వెళ్లండి",
@@ -63,6 +63,13 @@
     "mediaRequired": "దయచేసి ముందుగా ఫోటోను ఎంచుకోండి",
     "switchCamera": "కెమెరా మార్చండి",
     "capture": "క్యాప్చర్"
+  },
+  "location": {
+    "title": "వ్యర్థాల స్థానం",
+    "useCurrentLocation": "ప్రస్తుత లొకేషన్",
+    "selectOnMap": "మ్యాప్‌లో ఎంచుకోండి",
+    "confirmLocation": "ఈ లొకేషన్ ఉపయోగించండి",
+    "locationSelected": "మ్యాప్‌లో ఎంచుకోబడింది"
   },
   "analyzing": {
     "title": "మీ రిపోర్ట్ విశ్లేషించబడుతోంది...",
@@ -121,18 +128,48 @@
     "status": "స్థితి"
   },
   "profile": {
-    "title": "ప్రొఫైల్",
+    "title": "ప్రొఫైల్ & సెట్టింగ్‌లు",
     "citizenAccount": "పౌర ఖాతా",
     "reportsSubmitted": "సమర్పించిన రిపోర్టులు",
     "issuesResolved": "పరిష్కరించిన సమస్యలు",
     "ward": "వార్డు / జోన్",
     "phone": "ఫోన్",
+    "edit": "సవరించండి",
+    "editProfile": "ప్రొఫైల్ సవరించండి",
+    "saveChanges": "మార్పులను సేవ్ చేయండి",
     "settings": "సెట్టింగ్‌లు",
     "language": "భాష",
     "about": "SwachhLens గురించి",
     "aboutDesc": "SwachhLens అనేది AI ఆధారిత నగర వ్యర్థాల నిర్వహణ సహాయ వ్యవస్థ.",
     "signOut": "సైన్ అవుట్",
     "demoMode": "డెమో మోడ్ యాక్టివ్‌గా ఉంది"
+  },
+  "settings": {
+    "account": "ఖాతా",
+    "preferences": "ప్రాధాన్యతలు",
+    "appearance": "రూపురేఖలు (థీమ్)",
+    "lightMode": "లైట్ మోడ్",
+    "darkMode": "డార్క్ మోడ్",
+    "systemMode": "సిస్టమ్ ప్రాధాన్యత",
+    "changePassword": "పాస్‌వర్డ్ మార్చండి",
+    "updatePassword": "పాస్‌వర్డ్ నవీకరించండి",
+    "deleteAccount": "ఖాతాను తొలగించండి",
+    "deleteAccountTitle": "పౌర ఖాతా తొలగింపు",
+    "deleteAccountWarning": "ఖాతా తొలగింపు శాశ్వతమైనది. మీ డేటా తిరిగి పొందబడదు.",
+    "confirmDelete": "ఖాతాను తొలగించండి",
+    "notifications": "నోటిఫికేషన్‌లు",
+    "securityPrivacy": "భద్రత & గోప్యత",
+    "securityOverview": "భద్రతా అవలోకనం",
+    "legal": "చట్టపరమైన సమాచారం"
+  },
+  "notifications": {
+    "push": "పుష్ నోటిఫికేషన్‌లు",
+    "statusUpdates": "రిపోర్ట్ స్థితి నవీకరణలు",
+    "alerts": "అత్యవసర హెచ్చరికలు"
+  },
+  "legal": {
+    "privacyPolicy": "గోప్యతా విధానం",
+    "termsOfService": "సేవా నిబంధనలు"
   },
   "priority": {
     "low": "LOW",

@@ -22,7 +22,7 @@
     "settings": "सेटिंग्ज",
     "language": "भाषा",
     "selectLanguage": "भाषा निवडा",
-    "save": "जतन करा",
+    "save": "बदल जतन करा",
     "cancel": "रद्द करा",
     "back": "मागे",
     "backToHome": "मुख्यपृष्ठावर परत जा",
@@ -63,6 +63,13 @@
     "mediaRequired": "कृपया आधी फोटो काढा किंवा निवडा",
     "switchCamera": "कॅमेरा बदला",
     "capture": "कॅप्चर"
+  },
+  "location": {
+    "title": "कचऱ्याचे स्थान",
+    "useCurrentLocation": "सध्याचे स्थान",
+    "selectOnMap": "नकाशावर निवडा",
+    "confirmLocation": "हे स्थान वापरा",
+    "locationSelected": "नकाशावर निवडले गेले"
   },
   "analyzing": {
     "title": "तुमच्या तक्रारीचे विश्लेषण केले जात आहे...",
@@ -121,18 +128,48 @@
     "status": "स्थिती"
   },
   "profile": {
-    "title": "प्रोफाइल",
+    "title": "प्रोफाइल आणि सेटिंग्ज",
     "citizenAccount": "नागरिक खाते",
     "reportsSubmitted": "नोंदवलेल्या तक्रारी",
     "issuesResolved": "सोडवलेल्या समस्या",
     "ward": "प्रभाग / विभाग",
     "phone": "फोन",
+    "edit": "संपादित करा",
+    "editProfile": "प्रोफाइल संपादित करा",
+    "saveChanges": "बदल जतन करा",
     "settings": "सेटिंग्ज",
     "language": "भाषा",
     "about": "SwachhLens बद्दल",
     "aboutDesc": "SwachhLens ही स्मार्ट नागरी कचरा व्यवस्थापनासाठी तयार केलेली AI प्रणाली आहे.",
     "signOut": "साइन आउट",
     "demoMode": "डेमो मोड सक्रिय आहे"
+  },
+  "settings": {
+    "account": "खाते",
+    "preferences": "प्राधान्ये",
+    "appearance": "थीम (Appearance)",
+    "lightMode": "लाइट मोड",
+    "darkMode": "डार्क मोड",
+    "systemMode": "सिस्टम प्राधान्य",
+    "changePassword": "पासवर्ड बदला",
+    "updatePassword": "पासवर्ड अपडेट करा",
+    "deleteAccount": "खाते हटवा",
+    "deleteAccountTitle": "नागरिक खाते हटवा",
+    "deleteAccountWarning": "खाते हटवणे कायमस्वरूपी आहे. तुमचा डेटा परत मिळवता येणार नाही.",
+    "confirmDelete": "खाते हटवा",
+    "notifications": "सूचना (Notifications)",
+    "securityPrivacy": "सुरक्षा आणि गोपनीयता",
+    "securityOverview": "सुरक्षा विहंगावलोकन",
+    "legal": "कायदेशीर माहिती"
+  },
+  "notifications": {
+    "push": "पुश सूचना",
+    "statusUpdates": "तक्रार स्थिती अपडेट्स",
+    "alerts": "तातडीचे अलर्ट"
+  },
+  "legal": {
+    "privacyPolicy": "गोपनीयता धोरण",
+    "termsOfService": "सेवा अटी"
   },
   "priority": {
     "low": "LOW",

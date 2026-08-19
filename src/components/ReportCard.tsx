@@ -29,9 +29,9 @@ export const ReportCard: React.FC<ReportCardProps> = ({ report }) => {
   return (
     <div
       onClick={() => navigate(`/reports/${report.id}`)}
-      className="bg-white rounded-2xl p-3.5 border border-[#DCE7E1] shadow-card hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex gap-3 items-center group"
+      className="bg-white dark:bg-[#14221B] rounded-2xl p-3.5 border border-[#DCE7E1] dark:border-[#294037] shadow-card hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex gap-3 items-center group"
     >
-      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#F7FAF8] flex-shrink-0 border border-[#DCE7E1]/80">
+      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#F7FAF8] dark:bg-[#0D1712] flex-shrink-0 border border-[#DCE7E1]/80 dark:border-[#294037]">
         {report.image_url ? (
           <img
             src={report.image_url}
@@ -40,7 +40,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({ report }) => {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#64736A]">
+          <div className="w-full h-full flex items-center justify-center text-[#64736A] dark:text-[#A9BBB1]">
             <ImageIcon className="w-6 h-6 opacity-40" />
           </div>
         )}
@@ -53,13 +53,13 @@ export const ReportCard: React.FC<ReportCardProps> = ({ report }) => {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1 mb-1">
-          <span className="text-[11px] font-mono font-bold text-[#168A5B]">
+          <span className="text-[11px] font-mono font-bold text-[#168A5B] dark:text-[#39B77A]">
             {report.id}
           </span>
-          <span className="text-[10px] text-[#64736A]">{formattedDate}</span>
+          <span className="text-[10px] text-[#64736A] dark:text-[#A9BBB1]">{formattedDate}</span>
         </div>
 
-        <h2 className="text-sm font-bold text-[#17211B] truncate leading-tight mb-1.5">
+        <h2 className="text-sm font-bold text-[#17211B] dark:text-[#F2F7F4] truncate leading-tight mb-1.5">
           {report.waste_type}
         </h2>
 
@@ -69,13 +69,13 @@ export const ReportCard: React.FC<ReportCardProps> = ({ report }) => {
         </div>
 
         {report.description && (
-          <p className="text-[11px] text-[#64736A] truncate mt-1.5">
+          <p className="text-[11px] text-[#64736A] dark:text-[#A9BBB1] truncate mt-1.5">
             {report.description}
           </p>
         )}
       </div>
 
-      <div className="text-[#64736A] group-hover:text-[#168A5B] transition-colors pl-1">
+      <div className="text-[#64736A] dark:text-[#A9BBB1] group-hover:text-[#168A5B] dark:group-hover:text-[#39B77A] transition-colors pl-1">
         <ChevronRight className="w-5 h-5" />
       </div>
     </div>

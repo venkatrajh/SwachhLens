@@ -22,7 +22,7 @@
     "settings": "ಸೆಟ್ಟಿಂಗ್ಸ್",
     "language": "ಭಾಷೆ",
     "selectLanguage": "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
-    "save": "ಉಳಿಸಿ",
+    "save": "ಬದಲಾವಣೆ ಉಳಿಸಿ",
     "cancel": "ರದ್ದುಮಾಡಿ",
     "back": "ಹಿಂದಕ್ಕೆ",
     "backToHome": "ಮುಖಪುಟಕ್ಕೆ ಹಿಂತಿರುಗಿ",
@@ -63,6 +63,13 @@
     "mediaRequired": "ದಯವಿಟ್ಟು ಮೊದಲು ಫೋಟೋ ತೆಗೆಯಿರಿ ಅಥವಾ ಆಯ್ಕೆಮಾಡಿ",
     "switchCamera": "ಕ್ಯಾಮೆರಾ ಬದಲಿಸಿ",
     "capture": "ಸೆರೆಹಿಡಿಯಿರಿ"
+  },
+  "location": {
+    "title": "ತ್ಯಾಜ್ಯದ ಸ್ಥಳ",
+    "useCurrentLocation": "ಪ್ರಸ್ತುತ ಸ್ಥಳ",
+    "selectOnMap": "ನಕ್ಷೆಯಲ್ಲಿ ಆಯ್ಕೆಮಾಡಿ",
+    "confirmLocation": "ಈ ಸ್ಥಳ ಬಳಸಿ",
+    "locationSelected": "ನಕ್ಷೆಯಲ್ಲಿ ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ"
   },
   "analyzing": {
     "title": "ನಿಮ್ಮ ವರದಿಯನ್ನು ವಿಶ್ಲೇಷಿಸಲಾಗುತ್ತಿದೆ...",
@@ -121,18 +128,48 @@
     "status": "ಸ್ಥಿತಿ"
   },
   "profile": {
-    "title": "ಪ್ರೊಫೈಲ್",
+    "title": "ಪ್ರೊಫೈಲ್ ಮತ್ತು ಸೆಟ್ಟಿಂಗ್ಸ್",
     "citizenAccount": "ನಾಗರಿಕ ಖಾತೆ",
     "reportsSubmitted": "ಸಲ್ಲಿಸಿದ ವರದಿಗಳು",
     "issuesResolved": "ಪರಿಹರಿಸಲಾದ ಸಮಸ್ಯೆಗಳು",
     "ward": "ವಾರ್ಡ್ / ವಲಯ",
     "phone": "ದೂರವಾಣಿ",
+    "edit": "ತಿದ್ದುಪಡಿ",
+    "editProfile": "ಪ್ರೊಫೈಲ್ ತಿದ್ದುಪಡಿ",
+    "saveChanges": "ಬದಲಾವಣೆ ಉಳಿಸಿ",
     "settings": "ಸೆಟ್ಟಿಂಗ್ಸ್",
     "language": "ಭಾಷೆ",
     "about": "SwachhLens ಬಗ್ಗೆ",
     "aboutDesc": "SwachhLens ಎಂಬುದು AI ಆಧಾರಿತ ನಗರ ತ್ಯಾಜ್ಯ ನಿರ್ವಹಣಾ ನಿರ್ಧಾರ ಬೆಂಬಲ ವ್ಯವಸ್ಥೆಯಾಗಿದೆ.",
     "signOut": "ಸೈನ್ ಔಟ್",
     "demoMode": "ಡೆಮೊ ಮೋಡ್ ಸಕ್ರಿಯವಾಗಿದೆ"
+  },
+  "settings": {
+    "account": "ಖಾತೆ",
+    "preferences": "ಆದ್ಯತೆಗಳು",
+    "appearance": "ಗೋಚರತೆ (ಥೀಮ್)",
+    "lightMode": "ಲೈಟ್ ಮೋಡ್",
+    "darkMode": "ಡಾರ್ಕ್ ಮೋಡ್",
+    "systemMode": "ಸಿಸ್ಟಮ್ ಆದ್ಯತೆ",
+    "changePassword": "ಪಾಸ್‌ವರ್ಡ್ ಬದಲಾಯಿಸಿ",
+    "updatePassword": "ಪಾಸ್‌ವರ್ಡ್ ನವೀಕರಿಸಿ",
+    "deleteAccount": "ಖಾತೆ ಅಳಿಸಿ",
+    "deleteAccountTitle": "ನಾಗರಿಕ ಖಾತೆ ಅಳಿಸಿ",
+    "deleteAccountWarning": "ಖಾತೆಯನ್ನು ಅಳಿಸುವುದು ಶಾಶ್ವತವಾಗಿರುತ್ತದೆ. ನಿಮ್ಮ ಡೇಟಾವನ್ನು ಮರಳಿ ಪಡೆಯಲು ಸಾಧ್ಯವಿಲ್ಲ.",
+    "confirmDelete": "ಖಾತೆ ಅಳಿಸಿ",
+    "notifications": "ಅಧಿಸೂಚನೆಗಳು",
+    "securityPrivacy": "ಭದ್ರತೆ ಮತ್ತು ಗೌಪ್ಯತೆ",
+    "securityOverview": "ಭದ್ರತೆಯ ಮಾಹಿತಿ",
+    "legal": "ಕಾನೂನು ಮತ್ತು ನೀತಿಗಳು"
+  },
+  "notifications": {
+    "push": "ಪುಶ್ ಅಧಿಸೂಚನೆಗಳು",
+    "statusUpdates": "ವರದಿ ಸ್ಥಿತಿ ಅಪ್ಡೇಟ್‌ಗಳು",
+    "alerts": "ತುರ್ತು ಎಚ್ಚರಿಕೆಗಳು"
+  },
+  "legal": {
+    "privacyPolicy": "ಗೌಪ್ಯತಾ ನೀತಿ",
+    "termsOfService": "ಸೇವಾ ನಿಯಮಗಳು"
   },
   "priority": {
     "low": "LOW",

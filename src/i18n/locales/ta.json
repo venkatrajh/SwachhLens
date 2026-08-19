@@ -64,6 +64,13 @@
     "switchCamera": "கேமராவை மாற்றவும்",
     "capture": "படம் பிடி"
   },
+  "location": {
+    "title": "இருப்பிடம்",
+    "useCurrentLocation": "தற்போதைய இருப்பிடம்",
+    "selectOnMap": "வரைபடத்தில் தேர்ந்தெடுக்கவும்",
+    "confirmLocation": "இந்த இருப்பிடத்தைப் பயன்படுத்து",
+    "locationSelected": "வரைபடத்தில் தேர்ந்தெடுக்கப்பட்டது"
+  },
   "analyzing": {
     "title": "உங்கள் புகார் பகுப்பாய்வு செய்யப்படுகிறது...",
     "step1": "படம் பெறப்பட்டது ✓",
@@ -121,18 +128,48 @@
     "status": "நிலை"
   },
   "profile": {
-    "title": "சுயவிவரம்",
+    "title": "சுயவிவரம் & அமைப்புகள்",
     "citizenAccount": "குடிமகன் கணக்கு",
     "reportsSubmitted": "சமர்ப்பிக்கப்பட்ட புகார்கள்",
     "issuesResolved": "தீர்க்கப்பட்ட பிரச்சனைகள்",
     "ward": "வார்டு / மண்டலம்",
     "phone": "தொலைபேசி",
+    "edit": "திருத்து",
+    "editProfile": "சுயவிவரத்தைத் திருத்தவும்",
+    "saveChanges": "மாற்றங்களைச் சேமி",
     "settings": "அமைப்புகள்",
     "language": "மொழி",
     "about": "SwachhLens பற்றி",
     "aboutDesc": "SwachhLens என்பது நகராட்சி தூய்மைப் பணிகளுக்காக உருவாக்கப்பட்ட AI-அடிப்படையிலான முடிவெடுக்கும் அமைப்பாகும்.",
     "signOut": "வெளியேறு",
     "demoMode": "டெமோ பயன்முறை செயலில் உள்ளது"
+  },
+  "settings": {
+    "account": "கணக்கு",
+    "preferences": "விருப்பத்தேர்வுகள்",
+    "appearance": "தோற்றம்",
+    "lightMode": "வெளிச்சப் பயன்முறை (Light)",
+    "darkMode": "இருண்ட பயன்முறை (Dark)",
+    "systemMode": "கணினி விருப்பத்தேர்வு",
+    "changePassword": "கடவுச்சொல்லை மாற்றவும்",
+    "updatePassword": "கடவுச்சொல்லைப் புதுப்பிக்கவும்",
+    "deleteAccount": "கணக்கை நீக்கு",
+    "deleteAccountTitle": "குடிமகன் கணக்கை நீக்கு",
+    "deleteAccountWarning": "உங்கள் கணக்கை நீக்குவது நிரந்தரமானது. உங்கள் தரவை மீட்டெடுக்க முடியாது.",
+    "confirmDelete": "கணக்கை நீக்கு",
+    "notifications": "அறிவிப்புகள்",
+    "securityPrivacy": "பாதுகாப்பு & தனியுரிமை",
+    "securityOverview": "பாதுகாப்பு கண்ணோட்டம்",
+    "legal": "சட்ட & கொள்கைகள்"
+  },
+  "notifications": {
+    "push": "புஷ் அறிவிப்புகள்",
+    "statusUpdates": "புகார் நிலை அறிவிப்புகள்",
+    "alerts": "அவசர எச்சரிக்கைகள்"
+  },
+  "legal": {
+    "privacyPolicy": "தனியுரிமைக் கொள்கை",
+    "termsOfService": "பயன்பாட்டு விதிமுறைகள்"
   },
   "priority": {
     "low": "LOW",
