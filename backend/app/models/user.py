@@ -2,8 +2,7 @@
 User ORM model.
 
 Represents both citizen users (Kavin's app) and municipal officers/
-commissioners (Nakul's dashboard).  Authentication is Phase 3 — this
-model only stores the schema.
+commissioners (Nakul's dashboard).
 """
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ class User(Base):
     Auth providers
     --------------
     local   — email + password_hash
-    google  — OAuth (Phase 3)
+    google  — OAuth (future)
     """
 
     __tablename__ = "users"
@@ -52,6 +51,8 @@ class User(Base):
         CheckConstraint("reports_submitted >= 0", name="ck_users_reports_submitted_non_negative"),
         CheckConstraint("issues_resolved >= 0", name="ck_users_issues_resolved_non_negative"),
         Index("ix_users_email", "email"),
+        Index("ix_users_verification_token", "verification_token"),
+        Index("ix_users_reset_token", "reset_token"),
     )
 
     # ── Identity ─────────────────────────────────────────────────────────────
@@ -65,11 +66,27 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    # Never store plaintext passwords — authentication layer (Phase 3)
-    # is responsible for hashing before persisting.
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     auth_provider: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="local"
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+
+    # ── Email verification token (hashed, single-use, expiring) ──────────────
+    verification_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verification_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # ── Password reset token (hashed, single-use, expiring) ──────────────────
+    reset_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reset_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     # ── Profile ──────────────────────────────────────────────────────────────
@@ -110,3 +127,4 @@ class User(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User id={self.id} email={self.email!r} role={self.role!r}>"
+

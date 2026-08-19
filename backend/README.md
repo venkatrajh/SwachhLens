@@ -1,7 +1,7 @@
 # SwachhLens — Backend API
 
 > AI-Powered Waste Response Decision Support System  
-> FastAPI · PostgreSQL/Supabase · JWT · Python 3.12+
+> FastAPI · PostgreSQL/Supabase · JWT · bcrypt · Brevo · Python 3.12+
 
 ---
 
@@ -13,10 +13,13 @@
 - [Environment Variables](#environment-variables)
 - [Running the Server](#running-the-server)
 - [Database Architecture](#database-architecture)
+- [Authentication Architecture](#authentication-architecture)
+- [Brevo Email Configuration](#brevo-email-configuration)
 - [Supabase Setup](#supabase-setup)
 - [Migrations](#migrations)
 - [API Reference](#api-reference)
 - [Running Tests](#running-tests)
+- [Security Notes](#security-notes)
 - [Phase Roadmap](#phase-roadmap)
 
 ---
@@ -26,33 +29,44 @@
 ```
 backend/
 ├── app/
-│   ├── main.py                    # Application factory
+│   ├── main.py                        # Application factory (lifespan, CORS)
 │   ├── core/
-│   │   ├── config.py              # Settings (pydantic-settings)
-│   │   └── logging.py             # Structured logging
+│   │   ├── config.py                  # Pydantic-settings (all env vars)
+│   │   ├── logging.py                 # Structured logging
+│   │   ├── security.py                # bcrypt hashing + JWT encode/decode
+│   │   └── dependencies.py            # get_current_user, require_roles()
 │   ├── db/
-│   │   ├── base.py                # DeclarativeBase
-│   │   └── session.py             # Async engine + get_db() dependency
+│   │   ├── base.py                    # DeclarativeBase
+│   │   └── session.py                 # Lazy async engine + get_db()
 │   ├── models/
-│   │   ├── __init__.py            # Single import point for Alembic
-│   │   ├── user.py                # User model
-│   │   ├── report.py              # Report model (central table)
-│   │   ├── team.py                # Team model
-│   │   ├── vehicle.py             # Vehicle model
-│   │   └── report_status_history.py
+│   │   ├── __init__.py                # Single import point for Alembic
+│   │   ├── user.py                    # User ORM model (auth fields included)
+│   │   ├── report.py                  # Report model (central table)
+│   │   ├── team.py                    # Team model
+│   │   ├── vehicle.py                 # Vehicle model
+│   │   └── report_status_history.py   # Audit trail
+│   ├── schemas/
+│   │   └── auth.py                    # Pydantic request/response schemas
+│   ├── services/
+│   │   ├── auth.py                    # Registration, login, verify, reset
+│   │   └── email.py                   # Brevo email service abstraction
 │   └── api/
 │       └── v1/
-│           ├── router.py          # v1 aggregator
-│           └── health.py          # GET /api/v1/health
+│           ├── router.py              # v1 aggregator
+│           ├── health.py              # GET /api/v1/health
+│           ├── auth.py                # Auth endpoints
+│           └── users.py               # User management endpoints
 ├── alembic/
-│   ├── env.py                     # Reads DATABASE_URL from settings
+│   ├── env.py                         # Reads DATABASE_URL from settings
 │   └── versions/
-│       └── 0001_initial_schema.py # Initial migration (all 5 tables)
+│       ├── 0001_initial_schema.py     # Initial migration (5 tables)
+│       └── 0002_add_auth_fields_to_users.py  # Auth fields on users
 ├── tests/
-│   ├── test_health.py             # Phase 1 health tests (9)
-│   └── test_database.py           # Phase 2 model/schema tests (50)
+│   ├── test_health.py                 # Phase 1: health tests (9)
+│   ├── test_database.py               # Phase 2: model/schema tests (50)
+│   └── test_auth.py                   # Phase 3: auth/authz tests (40)
 ├── alembic.ini
-├── .env.example
+├── .env.example                       # Copy → .env and fill in values
 ├── .gitignore
 ├── pyproject.toml
 ├── requirements.txt
@@ -63,11 +77,13 @@ backend/
 
 ## Prerequisites
 
-| Tool | Minimum Version |
-|------|----------------|
-| Python | **3.12** (not 3.14 — no pydantic-core wheel yet) |
-| pip | 23+ |
-| PostgreSQL | 14+ (or Supabase project) |
+| Tool | Minimum Version | Note |
+|------|----------------|------|
+| Python | **3.12** | Do NOT use 3.14 — no `pydantic-core` wheel |
+| pip | 23+ | |
+| PostgreSQL | 14+ | Or a Supabase project |
+
+> **Important:** Always create the venv with `py -3.12 -m venv .venv` on Windows.
 
 ---
 
@@ -79,7 +95,7 @@ git clone <repo-url>
 cd SwachhLens\backend
 git checkout venky/backend-ai
 
-# 2. Create a Python 3.12 virtual environment  ← IMPORTANT: use py -3.12
+# 2. Create a Python 3.12 virtual environment
 py -3.12 -m venv .venv
 
 # 3. Activate it (PowerShell)
@@ -90,24 +106,38 @@ pip install -r requirements.txt
 
 # 5. Configure environment
 copy .env.example .env
-# Edit .env — set DATABASE_URL to your Supabase/local Postgres connection string
+# Edit .env — fill in DATABASE_URL, JWT_SECRET_KEY, BREVO_API_KEY, etc.
+
+# 6. Apply migrations to your Supabase/Postgres database
+alembic upgrade head
 ```
 
 ---
 
 ## Environment Variables
 
+All values come from `.env` (never committed). Copy `.env.example` → `.env`.
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | **Phase 2+** | `""` | PostgreSQL connection string (see below) |
+| `DATABASE_URL` | **Yes** | `""` | PostgreSQL async connection string |
+| `JWT_SECRET_KEY` | **Yes (prod)** | `CHANGE-ME-...` | Long random secret for JWT signing |
+| `BREVO_API_KEY` | **Yes (email)** | `""` | Brevo transactional email API key |
 | `APP_NAME` | No | `SwachhLens API` | Swagger UI title |
-| `APP_VERSION` | No | `0.1.0` | Swagger UI version |
-| `DEBUG` | No | `false` | Enable SQLAlchemy query logging |
+| `APP_VERSION` | No | `0.1.0` | API version |
+| `DEBUG` | No | `false` | SQLAlchemy query logging |
 | `ENVIRONMENT` | No | `development` | `development` \| `staging` \| `production` |
 | `HOST` | No | `0.0.0.0` | Uvicorn bind host |
 | `PORT` | No | `8000` | Uvicorn bind port |
 | `CORS_ORIGINS` | No | `http://localhost:3000,...` | Comma-separated allowed origins |
 | `LOG_LEVEL` | No | `INFO` | Log level |
+| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | JWT token lifetime (minutes) |
+| `EMAIL_VERIFICATION_EXPIRE_HOURS` | No | `24` | Verification token lifetime |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | No | `30` | Reset token lifetime |
+| `BREVO_SENDER_EMAIL` | No | `noreply@swachlens.app` | From address |
+| `BREVO_SENDER_NAME` | No | `SwachhLens` | From display name |
+| `FRONTEND_BASE_URL` | No | `http://localhost:3000` | Base URL for email links |
 
 ---
 
@@ -123,9 +153,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 | URL | Description |
 |-----|-------------|
-| `http://localhost:8000/docs` | Swagger UI |
+| `http://localhost:8000/docs` | Swagger UI (interactive) |
 | `http://localhost:8000/redoc` | ReDoc |
 | `http://localhost:8000/api/v1/health` | Health check |
+| `http://localhost:8000/api/v1/auth/...` | Auth endpoints |
 
 ---
 
@@ -134,11 +165,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 FastAPI
   ↓
-SQLAlchemy 2.x (async, ORM)
+SQLAlchemy 2.x (async ORM)
   ↓
 Alembic (schema migrations)
   ↓
-psycopg (psycopg3 driver)
+psycopg3 driver (postgresql+psycopg://)
   ↓
 PostgreSQL / Supabase PostgreSQL
 ```
@@ -148,95 +179,158 @@ PostgreSQL / Supabase PostgreSQL
 | Table | Description |
 |-------|-------------|
 | `users` | Citizens + municipal officers/commissioners |
-| `reports` | Central waste report table (shared by both apps) |
+| `reports` | Central waste report table |
 | `teams` | Municipal waste-response teams |
 | `vehicles` | Municipal vehicles |
 | `report_status_history` | Immutable audit trail of report status changes |
 
-### Key constraints
+---
 
-- `reports.confidence` — 0.0 to 1.0 (enforced at DB level)
-- `reports.progress` — 0 to 100
-- `reports.latitude` — −90 to 90
-- `reports.longitude` — −180 to 180
-- `reports.severity_score` — non-negative
-- `users.email` — unique
-- `teams.name` — unique
-- `vehicles.plate_number` — unique
+## Authentication Architecture
+
+### Token-based (JWT)
+
+- **Registration** → bcrypt-hashed password stored; verification token (bcrypt-hashed) stored; plain token emailed via Brevo.
+- **Login** → credentials verified against bcrypt hash; HS256 JWT issued; contains `sub` (user UUID), `role`, `email`.
+- **All protected endpoints** → `Authorization: Bearer <token>` header required; JWT decoded and user fetched from DB.
+- **Role checks** → server-side only via `require_roles("commissioner")` dependency.
+
+### Roles
+
+| Role | Description |
+|------|-------------|
+| `citizen` | Files waste reports (default) |
+| `officer` | Municipal field officer |
+| `commissioner` | Senior official, full dashboard access |
+
+### Token security
+
+- Tokens stored in DB as **bcrypt hashes** — never plaintext.
+- Tokens are **single-use** — cleared on successful verify/reset.
+- Tokens have **expiry** enforced both at creation and at validation time.
+- Email enumeration protected on `forgot-password` (always 200).
+- Timing-attack resistant on login (always runs bcrypt even on unknown email).
+
+### Reusable dependencies
+
+```python
+from app.core.dependencies import get_current_user, require_active_user, require_roles
+
+# Any authenticated endpoint
+async def endpoint(user: User = Depends(get_current_user)): ...
+
+# Active users only
+async def endpoint(user: User = Depends(require_active_user)): ...
+
+# Role-gated (officers and commissioners)
+async def endpoint(user: User = Depends(require_roles("officer", "commissioner"))): ...
+```
+
+---
+
+## Brevo Email Configuration
+
+1. Create an account at [app.brevo.com](https://app.brevo.com).
+2. Go to **SMTP & API → API Keys** → create a key.
+3. Set in `.env`:
+   ```
+   BREVO_API_KEY=your-api-key-here
+   BREVO_SENDER_EMAIL=noreply@yourdomain.com
+   BREVO_SENDER_NAME=SwachhLens
+   ```
+4. Verify your sender domain/email in Brevo settings.
+
+> The email service is abstracted in [`app/services/email.py`](app/services/email.py).  
+> In tests it is mocked via `app.dependency_overrides` — no real API calls are made.  
+> Email failures do **not** crash the API (logged as WARNING, 201 still returned).
 
 ---
 
 ## Supabase Setup
 
-1. Create a Supabase project at [supabase.com](https://supabase.com).
-2. Go to **Project Settings → Database → Connection string**.
-3. Copy the **Session Pooler** URI (port 5432).
-4. Replace `[YOUR-PASSWORD]` and paste into your `.env`:
-
-```
-DATABASE_URL=postgresql+psycopg://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
-```
-
-> **Note**: Use the `postgresql+psycopg://` scheme (psycopg3), not `postgresql+asyncpg://`.
+1. Create a project at [supabase.com](https://supabase.com).
+2. Go to **Project Settings → Database → Connection string → Session Pooler**.
+3. Copy the URI and set in `.env`:
+   ```
+   DATABASE_URL=postgresql+psycopg://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+4. Run `alembic upgrade head` to create all tables.
 
 ---
 
 ## Migrations
 
 ```powershell
-# Apply all pending migrations to the database
+# Apply all pending migrations
 alembic upgrade head
 
 # Roll back one migration
 alembic downgrade -1
 
-# Roll back to the beginning
+# Roll back to base (empty schema)
 alembic downgrade base
-
-# Preview SQL without connecting (offline mode)
-alembic upgrade head --sql
-
-# Check current migration state
-alembic current
 
 # View migration history
 alembic history
 
-# Auto-generate a new migration from model changes (Phase 3+)
+# Preview SQL without connecting (offline)
+alembic upgrade head --sql
+
+# Auto-generate from model changes
 alembic revision --autogenerate -m "describe your change"
 ```
+
+### Migration history
+
+| Revision | Description |
+|----------|-------------|
+| `0001` | Initial schema: users, teams, vehicles, reports, report_status_history |
+| `0002` | Add auth fields to users: is_active, is_verified, verification/reset tokens |
 
 ---
 
 ## API Reference
 
-### `GET /api/v1/health`
+### Health
 
-Liveness check — no DB dependency.
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/health` | None | Liveness check |
 
-**Response `200 OK`**
-```json
-{
-  "status": "ok",
-  "app_name": "SwachhLens API",
-  "version": "0.1.0",
-  "environment": "development",
-  "timestamp": "2026-08-19T15:10:00+00:00"
-}
-```
+### Authentication (`/api/v1/auth`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/v1/auth/register` | None | Register new user |
+| `POST` | `/api/v1/auth/login` | None | Log in, receive JWT |
+| `GET` | `/api/v1/auth/me` | Bearer | Current user profile |
+| `POST` | `/api/v1/auth/verify-email` | None | Verify email with token |
+| `POST` | `/api/v1/auth/forgot-password` | None | Request password-reset email |
+| `POST` | `/api/v1/auth/reset-password` | None | Complete password reset |
+
+### Users (`/api/v1/users`)
+
+| Method | Path | Auth | Required Role |
+|--------|------|------|--------------|
+| `GET` | `/api/v1/users/me` | Bearer | Any |
+| `GET` | `/api/v1/users/{id}` | Bearer | `officer`, `commissioner` |
+| `GET` | `/api/v1/users` | Bearer | `commissioner` |
 
 ---
 
 ## Running Tests
 
 ```powershell
-# Run all tests (Phase 1 + Phase 2)
+# Run the full test suite (99 tests, no live DB needed)
 pytest -v
 
-# Run only database tests
+# Auth tests only
+pytest tests/test_auth.py -v
+
+# Database model tests only
 pytest tests/test_database.py -v
 
-# Run only health tests
+# Health tests only
 pytest tests/test_health.py -v
 
 # With coverage
@@ -244,7 +338,30 @@ pip install pytest-cov
 pytest -v --cov=app --cov-report=term-missing
 ```
 
-> Database model tests run without a live database connection.
+### Test summary
+
+| File | Tests | DB Required |
+|------|-------|-------------|
+| `test_health.py` | 9 | No |
+| `test_database.py` | 50 | No (metadata introspection) |
+| `test_auth.py` | 40 | No (in-memory SQLite + mocked Brevo) |
+| **Total** | **99** | **None** |
+
+---
+
+## Security Notes
+
+- **Never commit `.env`** — it is in `.gitignore`.
+- **`JWT_SECRET_KEY`** must be a long, random secret in production:  
+  ```powershell
+  python -c "import secrets; print(secrets.token_urlsafe(64))"
+  ```
+- Passwords are hashed with **bcrypt** (passlib, 12 rounds) — never stored plaintext.
+- Verification and reset tokens are stored as **bcrypt hashes** — plain tokens only exist in memory long enough to be emailed.
+- Token lookups iterate only the matching candidate set, not the full table.
+- `forgot-password` always returns HTTP 200 regardless of email existence (no enumeration).
+- CORS is configured via the `CORS_ORIGINS` env var — restrict in production.
+- `BREVO_API_KEY` must never appear in source code, logs, or Git history.
 
 ---
 
@@ -252,159 +369,11 @@ pytest -v --cov=app --cov-report=term-missing
 
 | Phase | Status | Feature |
 |-------|--------|---------|
-| **1** | ✅ Done | Project scaffold, config, CORS, logging, /health, tests |
+| **1** | ✅ Done | FastAPI scaffold, config, CORS, logging, /health, tests |
 | **2** | ✅ Done | SQLAlchemy models, Alembic migrations, database foundation |
-| 3 | 🔜 Next | JWT authentication, user registration/login |
-| 4 | ⬜ Planned | Report APIs, Supabase Storage |
+| **3** | ✅ Done | JWT auth, RBAC, email verification, password reset, Brevo |
+| 4 | 🔜 Next | Report CRUD APIs, Supabase Storage (image uploads) |
 | 5 | ⬜ Planned | AI waste analysis, duplicate detection |
 | 6 | ⬜ Planned | Explainable Decision Engine |
 | 7 | ⬜ Planned | Team/Vehicle assignment, cleanup verification |
 | 8 | ⬜ Planned | Dashboard KPIs, analytics |
-
-
----
-
-## Project Structure
-
-```
-backend/
-├── app/
-│   ├── main.py              # Application factory (FastAPI app)
-│   ├── core/
-│   │   ├── config.py        # Pydantic-settings configuration
-│   │   └── logging.py       # Structured logging setup
-│   └── api/
-│       └── v1/
-│           ├── router.py    # Aggregated v1 router
-│           └── health.py    # GET /api/v1/health
-├── tests/
-│   └── test_health.py       # Health endpoint tests
-├── .env.example             # Template — copy to .env and fill in values
-├── .gitignore
-├── pyproject.toml           # Pytest configuration
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Prerequisites
-
-| Tool | Minimum Version |
-|------|----------------|
-| Python | 3.12 |
-| pip | 23+ |
-
----
-
-## Setup
-
-```bash
-# 1. Clone and switch to the backend branch
-git clone <repo-url>
-cd SwachhLens/backend
-git checkout venky/backend-ai
-
-# 2. Create a virtual environment
-python -m venv .venv
-
-# 3. Activate it
-# Windows (PowerShell)
-.venv\Scripts\Activate.ps1
-# macOS / Linux
-source .venv/bin/activate
-
-# 4. Install dependencies
-pip install -r requirements.txt
-
-# 5. Configure environment
-copy .env.example .env      # Windows
-# cp .env.example .env      # macOS/Linux
-# Then edit .env with your actual values
-```
-
----
-
-## Environment Variables
-
-All variables are optional for Phase 1 (defaults are sensible for local dev).  
-Copy `.env.example` → `.env` and adjust as needed.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `APP_NAME` | `SwachhLens API` | Displayed in Swagger UI |
-| `APP_VERSION` | `0.1.0` | Displayed in Swagger UI |
-| `DEBUG` | `false` | Enable debug mode |
-| `ENVIRONMENT` | `development` | `development` \| `staging` \| `production` |
-| `HOST` | `0.0.0.0` | Uvicorn bind host |
-| `PORT` | `8000` | Uvicorn bind port |
-| `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated allowed origins |
-| `LOG_LEVEL` | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
-
----
-
-## Running the Server
-
-```bash
-# Development (auto-reload on file changes)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Production
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-The server will be available at:
-
-| URL | Description |
-|-----|-------------|
-| `http://localhost:8000/docs` | Swagger UI (interactive) |
-| `http://localhost:8000/redoc` | ReDoc documentation |
-| `http://localhost:8000/openapi.json` | Raw OpenAPI schema |
-| `http://localhost:8000/api/v1/health` | Health check |
-
----
-
-## API Reference
-
-### `GET /api/v1/health`
-
-Liveness check — no database or external dependency required.
-
-**Response `200 OK`**
-```json
-{
-  "status": "ok",
-  "app_name": "SwachhLens API",
-  "version": "0.1.0",
-  "environment": "development",
-  "timestamp": "2026-08-19T15:10:00+00:00"
-}
-```
-
----
-
-## Running Tests
-
-```bash
-# Run all tests with verbose output
-pytest -v
-
-# Run with coverage report
-pip install pytest-cov
-pytest -v --cov=app --cov-report=term-missing
-```
-
----
-
-## Phase Roadmap
-
-| Phase | Status | Feature |
-|-------|--------|---------|
-| **1** | ✅ Done | Project scaffold, config, CORS, logging, /health, tests |
-| 2 | 🔜 Next | PostgreSQL/Supabase, JWT authentication |
-| 3 | ⬜ Planned | Report APIs, Supabase Storage |
-| 4 | ⬜ Planned | AI waste analysis, duplicate detection |
-| 5 | ⬜ Planned | Explainable Decision Engine |
-| 6 | ⬜ Planned | Team/Vehicle assignment, cleanup verification |
-| 7 | ⬜ Planned | Dashboard KPIs, analytics |
-| 8 | ⬜ Planned | Automated test suite expansion |

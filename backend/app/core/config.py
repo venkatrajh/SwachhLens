@@ -56,6 +56,25 @@ class Settings(BaseSettings):
     # Supabase connection strings use the same format via the session pooler.
     database_url: str = ""
 
+    # ── JWT (Phase 3) ────────────────────────────────────────────────────────
+    # MUST be set to a long random secret in production.
+    jwt_secret_key: str = "CHANGE-ME-IN-PRODUCTION-USE-A-LONG-RANDOM-SECRET"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+
+    # ── Email verification (Phase 3) ─────────────────────────────────────────
+    email_verification_expire_hours: int = 24
+
+    # ── Password reset (Phase 3) ─────────────────────────────────────────────
+    password_reset_expire_minutes: int = 30
+
+    # ── Brevo (Phase 3) ──────────────────────────────────────────────────────
+    brevo_api_key: str = ""
+    brevo_sender_email: str = "noreply@swachlens.app"
+    brevo_sender_name: str = "SwachhLens"
+
+    # ── Frontend (for email links) ────────────────────────────────────────────
+    frontend_base_url: str = "http://localhost:3000"
 
 
 @lru_cache(maxsize=1)

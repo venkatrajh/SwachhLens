@@ -7,3 +7,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 log_cli = true
 log_cli_level = "WARNING"
+# Suppress DeprecationWarning from python-jose (third-party) using datetime.utcnow()
+filterwarnings = [
+    "ignore::DeprecationWarning:jose",
+]
