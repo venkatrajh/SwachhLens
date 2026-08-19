@@ -46,16 +46,19 @@ backend/
 │   │   ├── vehicle.py                 # Vehicle model
 │   │   └── report_status_history.py   # Audit trail
 │   ├── schemas/
-│   │   └── auth.py                    # Pydantic request/response schemas
+│   │   ├── auth.py                    # Auth request/response schemas
+│   │   └── report.py                  # Report request/response schemas
 │   ├── services/
 │   │   ├── auth.py                    # Registration, login, verify, reset
-│   │   └── email.py                   # Brevo email service abstraction
+│   │   ├── email.py                   # Brevo email service abstraction
+│   │   └── report.py                  # Report CRUD, status workflow, assignment
 │   └── api/
 │       └── v1/
 │           ├── router.py              # v1 aggregator
 │           ├── health.py              # GET /api/v1/health
 │           ├── auth.py                # Auth endpoints
-│           └── users.py               # User management endpoints
+│           ├── users.py               # User management endpoints
+│           └── reports.py             # Report CRUD + workflow endpoints
 ├── alembic/
 │   ├── env.py                         # Reads DATABASE_URL from settings
 │   └── versions/
@@ -64,7 +67,8 @@ backend/
 ├── tests/
 │   ├── test_health.py                 # Phase 1: health tests (9)
 │   ├── test_database.py               # Phase 2: model/schema tests (50)
-│   └── test_auth.py                   # Phase 3: auth/authz tests (40)
+│   ├── test_auth.py                   # Phase 3: auth/authz tests (40)
+│   └── test_reports.py                # Phase 4: report workflow tests (49)
 ├── alembic.ini
 ├── .env.example                       # Copy → .env and fill in values
 ├── .gitignore
@@ -316,13 +320,56 @@ alembic revision --autogenerate -m "describe your change"
 | `GET` | `/api/v1/users/{id}` | Bearer | `officer`, `commissioner` |
 | `GET` | `/api/v1/users` | Bearer | `commissioner` |
 
+### Reports (`/api/v1/reports`)
+
+| Method | Path | Auth | Required Role | Description |
+|--------|------|------|--------------|-------------|
+| `POST` | `/api/v1/reports` | Bearer | Any | Create a waste report |
+| `GET` | `/api/v1/reports` | Bearer | Any (citizen=own) | List reports (paginated, filtered) |
+| `GET` | `/api/v1/reports/{id}` | Bearer | Own / officer+ | Get a single report |
+| `PATCH` | `/api/v1/reports/{id}` | Bearer | Own(pending) / officer+ | Update a report |
+| `POST` | `/api/v1/reports/{id}/status` | Bearer | `officer`, `commissioner` | Change report status |
+| `POST` | `/api/v1/reports/{id}/assign` | Bearer | `officer`, `commissioner` | Assign team/vehicle |
+| `GET` | `/api/v1/reports/{id}/history` | Bearer | Own / officer+ | Get status history |
+
+#### Listing query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | int | Page number (1-indexed, default: 1) |
+| `page_size` | int | Items per page (1–100, default: 20) |
+| `status` | string | Filter by report status |
+| `priority` | string | Filter by priority |
+| `waste_type` | string | Filter by waste type |
+| `assigned_team_id` | UUID | Filter by assigned team |
+| `assigned_vehicle_id` | UUID | Filter by assigned vehicle |
+| `user_id` | UUID | Filter by reporter (officer+ only) |
+| `is_duplicate` | bool | Filter duplicates |
+| `created_after` | ISO 8601 | Created after date |
+| `created_before` | ISO 8601 | Created before date |
+| `sort_by` | string | Sort field (`created_at`, `updated_at`, `priority`, `status`, `severity_score`) |
+| `sort_order` | string | `asc` or `desc` (default: `desc`) |
+
+#### Status workflow
+
+```
+pending → analyzing → assigned → in_progress → completed → verified
+                                                          ↘ escalated → assigned
+(any non-terminal) → duplicate
+```
+
+Terminal states: `verified`, `duplicate` (no further transitions allowed).
+
 ---
 
 ## Running Tests
 
 ```powershell
-# Run the full test suite (99 tests, no live DB needed)
+# Run the full test suite (148 tests, no live DB needed)
 pytest -v
+
+# Reports workflow tests only
+pytest tests/test_reports.py -v
 
 # Auth tests only
 pytest tests/test_auth.py -v
@@ -345,7 +392,8 @@ pytest -v --cov=app --cov-report=term-missing
 | `test_health.py` | 9 | No |
 | `test_database.py` | 50 | No (metadata introspection) |
 | `test_auth.py` | 40 | No (in-memory SQLite + mocked Brevo) |
-| **Total** | **99** | **None** |
+| `test_reports.py` | 49 | No (in-memory SQLite) |
+| **Total** | **148** | **None** |
 
 ---
 
@@ -372,8 +420,9 @@ pytest -v --cov=app --cov-report=term-missing
 | **1** | ✅ Done | FastAPI scaffold, config, CORS, logging, /health, tests |
 | **2** | ✅ Done | SQLAlchemy models, Alembic migrations, database foundation |
 | **3** | ✅ Done | JWT auth, RBAC, email verification, password reset, Brevo |
-| 4 | 🔜 Next | Report CRUD APIs, Supabase Storage (image uploads) |
-| 5 | ⬜ Planned | AI waste analysis, duplicate detection |
+| **4** | ✅ Done | Report CRUD APIs, status workflow & history, assignment, pagination/filtering |
+| 5 | 🔜 Next | AI waste analysis, duplicate detection |
 | 6 | ⬜ Planned | Explainable Decision Engine |
 | 7 | ⬜ Planned | Team/Vehicle assignment, cleanup verification |
 | 8 | ⬜ Planned | Dashboard KPIs, analytics |
+
