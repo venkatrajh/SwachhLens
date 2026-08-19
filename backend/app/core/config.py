@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # ── API ──────────────────────────────────────────────────────────────────
     api_v1_prefix: str = "/api/v1"
 
+    # ── Database (Phase 2) ───────────────────────────────────────────────────
+    # Format: postgresql+psycopg://user:password@host:5432/dbname
+    # Supabase connection strings use the same format via the session pooler.
+    database_url: str = ""
+
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
