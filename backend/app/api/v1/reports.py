@@ -377,6 +377,8 @@ async def analyze_report(
     report.recommended_team = recs["recommended_team"]
     report.recommended_vehicle = recs["recommended_vehicle"]
     report.recommended_action = recs["recommended_action"]
+    if "priority" in recs:
+        report.priority = recs["priority"]
 
     # Keep in 'analyzing' state. Flush and refresh to get generated column values.
     await db.flush()

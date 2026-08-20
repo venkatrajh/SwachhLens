@@ -113,12 +113,35 @@ async def test_ai_http_error(mocker):
 # ── Decision Engine Tests ─────────────────────────────────────────────────────
 
 def test_decision_engine_hazardous():
+    # Precedence: Hazardous > Recyclable
     ai_result = AIAnalysisResult(
-        waste_type="medical", volume_level="small", confidence=0.9, severity_score=90, estimated_weight_kg=5, is_hazardous=True, is_recyclable=False, recommended_action=""
+        waste_type="medical", volume_level="small", confidence=0.9, severity_score=90, estimated_weight_kg=5, is_hazardous=True, is_recyclable=True, recommended_action=""
     )
     recs = generate_recommendations(ai_result)
     assert recs["recommended_team"] == "Hazardous Response Team"
     assert recs["recommended_vehicle"] == "Hazmat Truck"
+    assert recs["priority"] == "critical"
+    assert "Material flagged as hazardous" in recs["recommended_action"]
+    assert "[Critical Priority] Medical waste identified" in recs["recommended_action"]
+
+
+def test_decision_engine_heavy_by_volume():
+    ai_result = AIAnalysisResult(
+        waste_type="construction", volume_level="very_large", confidence=0.9, severity_score=75, estimated_weight_kg=400, is_hazardous=False, is_recyclable=False, recommended_action=""
+    )
+    recs = generate_recommendations(ai_result)
+    assert recs["recommended_team"] == "Heavy Cleanup Crew"
+    assert recs["recommended_vehicle"] == "Dump Truck"
+    assert recs["priority"] == "high"
+
+
+def test_decision_engine_heavy_by_weight():
+    ai_result = AIAnalysisResult(
+        waste_type="construction", volume_level="large", confidence=0.9, severity_score=75, estimated_weight_kg=500, is_hazardous=False, is_recyclable=False, recommended_action=""
+    )
+    recs = generate_recommendations(ai_result)
+    assert recs["recommended_team"] == "Heavy Cleanup Crew"
+    assert recs["recommended_vehicle"] == "Dump Truck"
 
 
 def test_decision_engine_recyclable():
@@ -128,32 +151,74 @@ def test_decision_engine_recyclable():
     recs = generate_recommendations(ai_result)
     assert recs["recommended_team"] == "Recycling Team"
     assert recs["recommended_vehicle"] == "Recycling Truck"
+    assert recs["priority"] == "low"
+    assert "Waste is fully recyclable" in recs["recommended_action"]
 
 
-def test_decision_engine_heavy():
+def test_decision_engine_standard_by_volume():
     ai_result = AIAnalysisResult(
-        waste_type="construction", volume_level="very_large", confidence=0.9, severity_score=50, estimated_weight_kg=600, is_hazardous=False, is_recyclable=False, recommended_action=""
-    )
-    recs = generate_recommendations(ai_result)
-    assert recs["recommended_team"] == "Heavy Cleanup Crew"
-    assert recs["recommended_vehicle"] == "Dump Truck"
-
-
-def test_decision_engine_standard():
-    ai_result = AIAnalysisResult(
-        waste_type="household", volume_level="large", confidence=0.9, severity_score=20, estimated_weight_kg=150, is_hazardous=False, is_recyclable=False, recommended_action=""
+        waste_type="household", volume_level="large", confidence=0.9, severity_score=40, estimated_weight_kg=50, is_hazardous=False, is_recyclable=False, recommended_action=""
     )
     recs = generate_recommendations(ai_result)
     assert recs["recommended_team"] == "Standard Cleanup Crew"
     assert recs["recommended_vehicle"] == "Standard Garbage Truck"
+    assert recs["priority"] == "medium"
 
 
-def test_decision_engine_keeps_action():
+def test_decision_engine_standard_by_weight():
     ai_result = AIAnalysisResult(
-        waste_type="household", volume_level="small", confidence=0.9, severity_score=10, estimated_weight_kg=5, is_hazardous=False, is_recyclable=False, recommended_action="Specific action"
+        waste_type="household", volume_level="medium", confidence=0.9, severity_score=40, estimated_weight_kg=100, is_hazardous=False, is_recyclable=False, recommended_action=""
     )
     recs = generate_recommendations(ai_result)
-    assert recs["recommended_action"] == "Specific action"
+    assert recs["recommended_team"] == "Standard Cleanup Crew"
+
+
+def test_decision_engine_default_fallback():
+    ai_result = AIAnalysisResult(
+        waste_type="general", volume_level="small", confidence=0.9, severity_score=10, estimated_weight_kg=5, is_hazardous=False, is_recyclable=False, recommended_action=""
+    )
+    recs = generate_recommendations(ai_result)
+    assert recs["recommended_team"] == "General Maintenance"
+    assert recs["recommended_vehicle"] == "Light Pickup"
+    assert recs["priority"] == "low"
+
+
+def test_decision_engine_missing_fields():
+    # Test missing weight, missing volume, missing waste type, missing severity
+    class MockAIResult:
+        waste_type = ""
+        volume_level = ""
+        severity_score = None
+        estimated_weight_kg = None
+        is_hazardous = False
+        is_recyclable = False
+
+    ai_result = MockAIResult()
+    recs = generate_recommendations(ai_result) # type: ignore
+    assert recs["priority"] == "low" # Defaults to 0.0 -> low
+    assert recs["recommended_team"] == "General Maintenance"
+    action = recs["recommended_action"]
+    assert "[Low Priority] Unclassified waste identified" in action
+    assert "Volume: unknown)" in action # No weight string
+    assert "Severity: 0.0/100" in action
+
+
+def test_decision_engine_priority_boundaries():
+    def get_priority(score):
+        return generate_recommendations(AIAnalysisResult(
+            waste_type="x", volume_level="small", confidence=0.9, severity_score=score, estimated_weight_kg=5, is_hazardous=False, is_recyclable=False, recommended_action=""
+        ))["priority"]
+
+    assert get_priority(0.0) == "low"
+    assert get_priority(29.9) == "low"
+    assert get_priority(30.0) == "medium"
+    assert get_priority(59.9) == "medium"
+    assert get_priority(60.0) == "high"
+    assert get_priority(79.9) == "high"
+    assert get_priority(80.0) == "critical"
+    assert get_priority(100.0) == "critical"
+
+
 
 
 # ── API Endpoint Tests ────────────────────────────────────────────────────────
@@ -186,7 +251,7 @@ def _create_report_via_api(client: TestClient, token: str, **overrides) -> dict:
 def test_analyze_success(client: TestClient, mocker):
     _, token = _create_user_directly(role="officer")
     report = _create_report_via_api(client, token)
-    
+
     # Mock AI response
     mocker.patch(
         "app.api.v1.reports.analyze_report_with_groq",
@@ -196,7 +261,7 @@ def test_analyze_success(client: TestClient, mocker):
     )
     # Mock duplicate to None
     mocker.patch("app.api.v1.reports.find_duplicate_report", return_value=None)
-    
+
     resp = client.post(f"/api/v1/reports/{report['id']}/analyze", headers=_auth(token))
     assert resp.status_code == 200
     data = resp.json()
@@ -204,15 +269,15 @@ def test_analyze_success(client: TestClient, mocker):
     assert data["waste_type"] == "electronics"
     assert data["confidence"] == 0.8
     assert data["recommended_team"] == "Recycling Team"
-    
+
 
 def test_analyze_duplicate_flow(client: TestClient, mocker):
     _, token = _create_user_directly(role="officer")
     report = _create_report_via_api(client, token)
-    
+
     mock_dup = Report(id=uuid.uuid4())
     mocker.patch("app.api.v1.reports.find_duplicate_report", return_value=mock_dup)
-    
+
     resp = client.post(f"/api/v1/reports/{report['id']}/analyze", headers=_auth(token))
     assert resp.status_code == 200
     data = resp.json()
@@ -224,13 +289,13 @@ def test_analyze_duplicate_flow(client: TestClient, mocker):
 def test_analyze_ai_failure(client: TestClient, mocker):
     _, token = _create_user_directly(role="officer")
     report = _create_report_via_api(client, token)
-    
+
     mocker.patch("app.api.v1.reports.find_duplicate_report", return_value=None)
     mocker.patch("app.api.v1.reports.analyze_report_with_groq", return_value=None)
-    
+
     resp = client.post(f"/api/v1/reports/{report['id']}/analyze", headers=_auth(token))
     assert resp.status_code == 502
-    
+
     get_resp = client.get(f"/api/v1/reports/{report['id']}", headers=_auth(token))
     assert get_resp.json()["status"] == "pending"
 
@@ -241,12 +306,3 @@ async def test_ai_handles_no_description_and_no_image(mocker):
     mock_post.side_effect = Exception('Unexpected')
     res = await analyze_report_with_groq(None, None)
     assert res is None
-
-def test_decision_engine_default_fallback():
-    ai_result = AIAnalysisResult(
-        waste_type='unknown', volume_level='small', confidence=0.0, severity_score=0, estimated_weight_kg=1, is_hazardous=False, is_recyclable=False, recommended_action=''
-    )
-    recs = generate_recommendations(ai_result)
-    assert recs['recommended_team'] == 'General Maintenance'
-    assert recs['recommended_vehicle'] == 'Light Pickup'
-    assert recs['recommended_action'] == 'Routine clearing.'
