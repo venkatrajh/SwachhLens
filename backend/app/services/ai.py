@@ -29,14 +29,14 @@ You MUST respond with a valid JSON object matching this EXACT schema:
 Do not include markdown code blocks. Output ONLY the raw JSON object.
 """
 
-async def analyze_report_with_grok(description: str | None, image_url: str | None) -> AIAnalysisResult | None:
+async def analyze_report_with_groq(description: str | None, image_url: str | None) -> AIAnalysisResult | None:
     """
-    Calls the xAI Grok API to analyze a waste report.
+    Calls the Groq API to analyze a waste report.
     Returns a validated AIAnalysisResult, or None if analysis fails.
     """
     settings = get_settings()
-    if not settings.xai_api_key:
-        logger.error("XAI_API_KEY is not configured.")
+    if not settings.groq_api_key:
+        logger.error("GROQ_API_KEY is not configured.")
         return None
 
     # Construct the user message
@@ -60,7 +60,7 @@ async def analyze_report_with_grok(description: str | None, image_url: str | Non
         })
 
     payload = {
-        "model": settings.xai_model,
+        "model": settings.groq_model,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content}
@@ -70,14 +70,14 @@ async def analyze_report_with_grok(description: str | None, image_url: str | Non
     }
 
     headers = {
-        "Authorization": f"Bearer {settings.xai_api_key}",
+        "Authorization": f"Bearer {settings.groq_api_key}",
         "Content-Type": "application/json",
     }
 
     try:
-        async with httpx.AsyncClient(timeout=settings.xai_timeout) as client:
+        async with httpx.AsyncClient(timeout=settings.groq_timeout) as client:
             response = await client.post(
-                "https://api.x.ai/v1/chat/completions",
+                "https://api.groq.com/openai/v1/chat/completions",
                 json=payload,
                 headers=headers,
             )
@@ -102,17 +102,17 @@ async def analyze_report_with_grok(description: str | None, image_url: str | Non
             return result
 
     except httpx.TimeoutException:
-        logger.error("xAI API request timed out.")
+        logger.error("Groq API request timed out.")
         return None
     except httpx.HTTPStatusError as e:
-        logger.error("xAI API HTTP error: %s - %s", e.response.status_code, e.response.text)
+        logger.error("Groq API HTTP error: %s - %s", e.response.status_code, e.response.text)
         return None
     except json.JSONDecodeError:
-        logger.error("Failed to decode JSON from xAI response: %s", raw_content)
+        logger.error("Failed to decode JSON from Groq response: %s", raw_content)
         return None
     except ValidationError as e:
-        logger.error("xAI response failed schema validation: %s", e.errors())
+        logger.error("Groq response failed schema validation: %s", e.errors())
         return None
     except Exception as e:
-        logger.exception("Unexpected error during xAI analysis: %s", str(e))
+        logger.exception("Unexpected error during Groq analysis: %s", str(e))
         return None

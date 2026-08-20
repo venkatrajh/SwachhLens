@@ -36,7 +36,7 @@ from app.schemas.report import (
     StatusTransitionRequest,
 )
 from app.services import report as report_service
-from app.services.ai import analyze_report_with_grok
+from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
 from app.services.decision_engine import generate_recommendations
 
@@ -310,12 +310,12 @@ async def analyze_report(
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
 ) -> ReportResponse:
     """
-    Triggers the Grok AI analysis workflow on a pending report.
+    Triggers the Groq AI analysis workflow on a pending report.
 
     Workflow:
     1. Transition report to 'analyzing'.
     2. Check for geospatial duplicates.
-    3. Run Grok AI to extract features (waste_type, severity, etc.).
+    3. Run Groq AI to extract features (waste_type, severity, etc.).
     4. Run decision engine for recommendations.
     5. Leaves the report in 'analyzing' for manual officer assignment.
     """
@@ -356,7 +356,7 @@ async def analyze_report(
         return ReportResponse.model_validate(report)
 
     # 3. AI Analysis
-    ai_result = await analyze_report_with_grok(report.description, report.image_url)
+    ai_result = await analyze_report_with_groq(report.description, report.image_url)
     if not ai_result:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
