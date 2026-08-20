@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "pending":     {"analyzing", "duplicate"},
     "analyzing":   {"assigned", "duplicate"},
-    "assigned":    {"in_progress", "duplicate"},
+    "assigned":    {"assigned", "in_progress", "duplicate"},
     "in_progress": {"completed", "escalated", "duplicate"},
     "completed":   {"verified", "duplicate"},
     "escalated":   {"assigned", "duplicate"},
@@ -337,6 +337,28 @@ async def assign_report(
         label = f"Report assigned ({', '.join(parts)})"
 
     return await transition_status(db, report, "assigned", label=label)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resolution
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def resolve_report(
+    db: AsyncSession,
+    report: Report,
+    after_image_url: str,
+    resolution_notes: str | None = None,
+) -> ReportStatusHistory:
+    """
+    Resolve a report and transition to 'completed'.
+    """
+    report.after_image_url = after_image_url
+    
+    label = "Report resolved"
+    if resolution_notes:
+        label = f"Report resolved: {resolution_notes}"
+        
+    return await transition_status(db, report, "completed", label=label)
 
 
 # ── Status history ───────────────────────────────────────────────────────────

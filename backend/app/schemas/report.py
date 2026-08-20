@@ -143,6 +143,17 @@ class ReportAssignRequest(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Resolution
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ReportResolveRequest(BaseModel):
+    """Payload for POST /api/v1/reports/{id}/resolve."""
+
+    after_image_url: str = Field(..., max_length=2048)
+    resolution_notes: str | None = Field(default=None, max_length=1000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Responses
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -34,6 +34,7 @@ from app.schemas.report import (
     ReportUpdateRequest,
     StatusHistoryResponse,
     StatusTransitionRequest,
+    ReportResolveRequest,
 )
 from app.services import report as report_service
 from app.services.ai import analyze_report_with_groq
@@ -288,6 +289,46 @@ async def assign_report(
             team_id=payload.assigned_team_id,
             vehicle_id=payload.assigned_vehicle_id,
         )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
+    return StatusHistoryResponse.model_validate(history)
+
+
+# ── POST /reports/{id}/resolve ────────────────────────────────────────────────
+
+@router.post(
+    "/{report_id}/resolve",
+    response_model=StatusHistoryResponse,
+    summary="Resolve a report with evidence",
+)
+async def resolve_report(
+    report_id: uuid.UUID,
+    payload: ReportResolveRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+) -> StatusHistoryResponse:
+    """
+    Resolve a report by providing evidence (after_image_url and notes).
+    Transitions the report status to 'completed'.
+    """
+    report = await report_service.get_report(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found.",
+        )
+
+    try:
+        history = await report_service.resolve_report(
+            db, report,
+            after_image_url=payload.after_image_url,
+            resolution_notes=payload.resolution_notes,
+        )
+        await db.commit()
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
