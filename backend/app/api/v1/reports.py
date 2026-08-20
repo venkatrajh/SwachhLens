@@ -36,6 +36,9 @@ from app.schemas.report import (
     StatusTransitionRequest,
 )
 from app.services import report as report_service
+from app.services.ai import analyze_report_with_grok
+from app.services.duplicate_detection import find_duplicate_report
+from app.services.decision_engine import generate_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +295,95 @@ async def assign_report(
         )
 
     return StatusHistoryResponse.model_validate(history)
+
+
+# ── POST /reports/{id}/analyze ────────────────────────────────────────────────
+
+@router.post(
+    "/{report_id}/analyze",
+    response_model=ReportResponse,
+    summary="Trigger AI analysis and decision engine",
+)
+async def analyze_report(
+    report_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+) -> ReportResponse:
+    """
+    Triggers the Grok AI analysis workflow on a pending report.
+
+    Workflow:
+    1. Transition report to 'analyzing'.
+    2. Check for geospatial duplicates.
+    3. Run Grok AI to extract features (waste_type, severity, etc.).
+    4. Run decision engine for recommendations.
+    5. Leaves the report in 'analyzing' for manual officer assignment.
+    """
+
+    report = await report_service.get_report(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found.",
+        )
+
+    if report.status != "pending" and report.status != "analyzing":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Report is in '{report.status}' state and cannot be analyzed.",
+        )
+
+    # 1. Transition to analyzing (if not already)
+    if report.status == "pending":
+        try:
+            await report_service.transition_status(
+                db, report, "analyzing", label="AI analysis started"
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    # 2. Duplicate detection
+    duplicate = await find_duplicate_report(db, report)
+    if duplicate:
+        report.duplicate = True
+        report.linked_report_id = duplicate.id
+        await report_service.transition_status(
+            db, report, "duplicate", label=f"Marked as duplicate of {duplicate.id}"
+        )
+        # Commit duplicate status and stop
+        await db.commit()
+        await db.refresh(report)
+        return ReportResponse.model_validate(report)
+
+    # 3. AI Analysis
+    ai_result = await analyze_report_with_grok(report.description, report.image_url)
+    if not ai_result:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI analysis failed or returned invalid output.",
+        )
+
+    # 4. Update AI fields
+    report.waste_type = ai_result.waste_type
+    report.volume_level = ai_result.volume_level
+    report.confidence = ai_result.confidence
+    report.severity_score = ai_result.severity_score
+    report.estimated_weight_kg = ai_result.estimated_weight_kg
+    report.is_hazardous = ai_result.is_hazardous
+    report.is_recyclable = ai_result.is_recyclable
+
+    # 5. Decision Engine
+    recs = generate_recommendations(ai_result)
+    report.recommended_team = recs["recommended_team"]
+    report.recommended_vehicle = recs["recommended_vehicle"]
+    report.recommended_action = recs["recommended_action"]
+
+    # Keep in 'analyzing' state. Flush and refresh to get generated column values.
+    await db.flush()
+    await db.refresh(report)
+    await db.commit()
+
+    return ReportResponse.model_validate(report)
 
 
 # ── GET /reports/{id}/history ─────────────────────────────────────────────────

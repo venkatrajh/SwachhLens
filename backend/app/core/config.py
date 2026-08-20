@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     # ── Frontend (for email links) ────────────────────────────────────────────
     frontend_base_url: str = "http://localhost:3000"
 
+    # ── AI / Vision (Phase 5: Grok) ──────────────────────────────────────────
+    xai_api_key: str = ""
+    xai_model: str = "grok-2-vision-latest"
+    xai_timeout: int = 30
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
