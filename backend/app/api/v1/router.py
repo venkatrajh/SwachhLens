@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, health, reports, users, teams, vehicles, analytics
+from app.api.v1 import auth, health, reports, users, teams, vehicles, analytics, notifications
 
 router = APIRouter()
 
@@ -21,4 +21,5 @@ router.include_router(reports.router)
 router.include_router(teams.router, prefix="/teams")
 router.include_router(vehicles.router, prefix="/vehicles")
 router.include_router(analytics.router)
+router.include_router(notifications.router)
 

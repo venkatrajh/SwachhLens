@@ -115,6 +115,29 @@ class BrevoEmailService:
             html=html,
         )
 
+    def send_report_status_email(
+        self, *, to_email: str, to_name: str, report_id: str, event_type: str, title: str, message: str
+    ) -> None:
+        """Send an email notification regarding a report status update."""
+        settings = self._settings
+        link = f"{settings.frontend_base_url}/reports/{report_id}"
+        html = f"""
+        <h2>Hello {to_name},</h2>
+        <h3>{title}</h3>
+        <p>{message}</p>
+        <p>You can view the full report details here:</p>
+        <p><a href="{link}">View Report</a></p>
+        <br>
+        <p>Thank you for keeping our community clean!</p>
+        <p>- The SwachhLens Team</p>
+        """
+        self._send(
+            to_email=to_email,
+            to_name=to_name,
+            subject=f"SwachhLens Update: {title}",
+            html=html,
+        )
+
 
 # Module-level singleton — replace in tests via dependency override or monkeypatch.
 def get_email_service() -> BrevoEmailService:

@@ -20,7 +20,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, require_active_user, require_roles
@@ -37,11 +38,50 @@ from app.schemas.report import (
     ReportResolveRequest,
 )
 from app.services import report as report_service
+from app.services import notification as notification_service
 from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
 from app.services.decision_engine import generate_recommendations
+from app.services.email import BrevoEmailService, get_email_service
 
 logger = logging.getLogger(__name__)
+
+async def _notify_users(
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+    email_svc: BrevoEmailService,
+    user_ids: list[uuid.UUID],
+    report_id: uuid.UUID,
+    event_type: str,
+    title: str,
+    message: str,
+) -> None:
+    """Helper to create persistent notifications and background emails."""
+    if not user_ids:
+        return
+    
+    users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    users = users_result.scalars().all()
+    
+    for user in users:
+        await notification_service.create_notification(
+            db,
+            user_id=user.id,
+            event_type=event_type,
+            title=title,
+            message=message,
+            report_id=report_id,
+        )
+        background_tasks.add_task(
+            email_svc.send_report_status_email,
+            to_email=user.email,
+            to_name=user.name,
+            report_id=str(report_id),
+            event_type=event_type,
+            title=title,
+            message=message,
+        )
+
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -56,11 +96,32 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 )
 async def create_report(
     payload: ReportCreateRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_active_user)],
+    email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
 ) -> ReportResponse:
     """Any authenticated active user can create a waste report."""
     report = await report_service.create_report(db, current_user.id, payload)
+    
+    notify_ids = [current_user.id]
+    if payload.is_hazardous:
+        officers_res = await db.execute(select(User.id).where(User.role.in_(["officer", "commissioner"])))
+        notify_ids.extend(officers_res.scalars().all())
+    
+    await _notify_users(
+        db=db,
+        background_tasks=background_tasks,
+        email_svc=email_svc,
+        user_ids=list(set(notify_ids)),
+        report_id=report.id,
+        event_type="report_created",
+        title="Report Submitted",
+        message="Your report has been received and is pending analysis.",
+    )
+    await db.commit()
+    await db.refresh(report)
+    
     return ReportResponse.model_validate(report)
 
 
@@ -222,8 +283,10 @@ async def update_report(
 async def change_status(
     report_id: uuid.UUID,
     payload: StatusTransitionRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+    email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
 ) -> StatusHistoryResponse:
     """
     Execute a status transition on a report.
@@ -248,6 +311,24 @@ async def change_status(
             detail=str(exc),
         )
 
+    notify_ids = [report.user_id]
+    if payload.new_status == "escalated":
+        comm_res = await db.execute(select(User.id).where(User.role == "commissioner"))
+        notify_ids.extend(comm_res.scalars().all())
+
+    await _notify_users(
+        db=db,
+        background_tasks=background_tasks,
+        email_svc=email_svc,
+        user_ids=list(set(notify_ids)),
+        report_id=report.id,
+        event_type="status_changed",
+        title=f"Report Status Updated: {payload.new_status}",
+        message=f"Your report status has been updated to {payload.new_status}.",
+    )
+    await db.commit()
+    await db.refresh(history)
+
     return StatusHistoryResponse.model_validate(history)
 
 
@@ -261,8 +342,10 @@ async def change_status(
 async def assign_report(
     report_id: uuid.UUID,
     payload: ReportAssignRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+    email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
 ) -> StatusHistoryResponse:
     """
     Assign a team and/or vehicle to a report.
@@ -295,6 +378,19 @@ async def assign_report(
             detail=str(exc),
         )
 
+    await _notify_users(
+        db=db,
+        background_tasks=background_tasks,
+        email_svc=email_svc,
+        user_ids=[report.user_id],
+        report_id=report.id,
+        event_type="report_assigned",
+        title="Report Assigned",
+        message="A municipal team has been assigned to your report.",
+    )
+    await db.commit()
+    await db.refresh(history)
+
     return StatusHistoryResponse.model_validate(history)
 
 
@@ -308,8 +404,10 @@ async def assign_report(
 async def resolve_report(
     report_id: uuid.UUID,
     payload: ReportResolveRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+    email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
 ) -> StatusHistoryResponse:
     """
     Resolve a report by providing evidence (after_image_url and notes).
@@ -328,12 +426,24 @@ async def resolve_report(
             after_image_url=payload.after_image_url,
             resolution_notes=payload.resolution_notes,
         )
-        await db.commit()
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
+    
+    await _notify_users(
+        db=db,
+        background_tasks=background_tasks,
+        email_svc=email_svc,
+        user_ids=[report.user_id],
+        report_id=report.id,
+        event_type="report_resolved",
+        title="Report Resolved",
+        message="Your report has been resolved and is pending final verification.",
+    )
+    await db.commit()
+    await db.refresh(history)
 
     return StatusHistoryResponse.model_validate(history)
 
@@ -347,8 +457,10 @@ async def resolve_report(
 )
 async def analyze_report(
     report_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+    email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
 ) -> ReportResponse:
     """
     Triggers the Groq AI analysis workflow on a pending report.
@@ -391,6 +503,18 @@ async def analyze_report(
         await report_service.transition_status(
             db, report, "duplicate", label=f"Marked as duplicate of {duplicate.id}"
         )
+        
+        await _notify_users(
+            db=db,
+            background_tasks=background_tasks,
+            email_svc=email_svc,
+            user_ids=[report.user_id],
+            report_id=report.id,
+            event_type="duplicate_detected",
+            title="Duplicate Report Detected",
+            message="Your report has been marked as a duplicate of an existing report.",
+        )
+        
         # Commit duplicate status and stop
         await db.commit()
         await db.refresh(report)

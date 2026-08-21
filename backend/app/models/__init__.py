@@ -10,5 +10,6 @@ from app.models.team import Team  # noqa: F401
 from app.models.vehicle import Vehicle  # noqa: F401
 from app.models.report import Report  # noqa: F401
 from app.models.report_status_history import ReportStatusHistory  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
 
-__all__ = ["User", "Team", "Vehicle", "Report", "ReportStatusHistory"]
+__all__ = ["User", "Team", "Vehicle", "Report", "ReportStatusHistory", "Notification"]
