@@ -1,428 +1,473 @@
-# SwachhLens — Backend API
+# SwachhLens — Backend API & Decision Engine
 
-> AI-Powered Waste Response Decision Support System  
-> FastAPI · PostgreSQL/Supabase · JWT · bcrypt · Brevo · Python 3.12+
+> The asynchronous REST backend and intelligence core powering SwachhLens. Built with FastAPI, PostgreSQL/Supabase, Groq Vision AI, and a deterministic municipal dispatch decision engine.
 
 ---
 
 ## Table of Contents
 
-- [Project Structure](#project-structure)
+- [Architectural Overview](#architectural-overview)
+- [Directory Layout](#directory-layout)
 - [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Environment Variables](#environment-variables)
-- [Running the Server](#running-the-server)
-- [Database Architecture](#database-architecture)
-- [Authentication Architecture](#authentication-architecture)
-- [Brevo Email Configuration](#brevo-email-configuration)
-- [Supabase Setup](#supabase-setup)
-- [Migrations](#migrations)
-- [API Reference](#api-reference)
-- [Running Tests](#running-tests)
-- [Security Notes](#security-notes)
-- [Phase Roadmap](#phase-roadmap)
+- [Environment Configuration](#environment-configuration)
+- [Installation & Local Setup](#installation--local-setup)
+- [Database Schema & Migrations](#database-schema--migrations)
+- [Fleet Initialization Script](#fleet-initialization-script)
+- [Core Services Deep Dive](#core-services-deep-dive)
+  - [Vision AI Pipeline (Groq)](#vision-ai-pipeline-groq)
+  - [Reverse Geocoding & Address Fallback](#reverse-geocoding--address-fallback)
+  - [Geospatial Duplicate Detection](#geospatial-duplicate-detection)
+  - [Rule-Based Decision Engine](#rule-based-decision-engine)
+  - [Deterministic Site Clearance Images](#deterministic-site-clearance-images)
+  - [Email & Notification Services](#email--notification-services)
+- [Complete REST API Reference](#complete-rest-api-reference)
+- [Automated Testing Suite (210 Tests)](#automated-testing-suite-210-tests)
+- [Security & RBAC Specifications](#security--rbac-specifications)
 
 ---
 
-## Project Structure
+## Architectural Overview
+
+The backend is structured around clean asynchronous architecture:
+- **FastAPI 0.115.5**: Non-blocking asynchronous web layer with automatic OpenAPI documentation (`/docs` and `/redoc`).
+- **SQLAlchemy 2.0.36 (Async)**: Utilizing `psycopg` (psycopg 3.2.3) with connection pooling and lazy engine instantiation.
+- **Alembic 1.14.0**: Database migration versioning targeting PostgreSQL (compatible with local Postgres and Supabase pooler).
+- **Groq Vision AI Engine**: Multimodal processing with `qwen/qwen3.6-27b` for rapid waste triage, volume calculation, and continuous severity scoring (`0.0 – 100.0`).
+- **Fail-Safe Geocoding**: Nominatim integration with custom headers and a strict 2-second timeout; coordinate fallback ensures report creation never fails due to network or geocoder unavailability.
+
+---
+
+## Directory Layout
 
 ```
 backend/
+├── alembic/
+│   ├── env.py                         # Migration runtime with async engine
+│   ├── script.py.mako                 # Migration template
+│   ├── versions/
+│   │   ├── 0001_initial_schema.py     # Base tables: users, reports, teams, vehicles, status history
+│   │   ├── 0002_add_auth_fields_to_users.py # Verification tokens, reset tokens, active/verified flags
+│   │   └── 0003_create_notifications_table.py # In-app notification queue table
+│   └── README                         # Dedicated Alembic documentation
 ├── app/
-│   ├── main.py                        # Application factory (lifespan, CORS)
+│   ├── main.py                        # FastAPI application factory, lifespan, CORS, error handling
 │   ├── core/
-│   │   ├── config.py                  # Pydantic-settings (all env vars)
-│   │   ├── logging.py                 # Structured logging
-│   │   ├── security.py                # bcrypt hashing + JWT encode/decode
-│   │   └── dependencies.py            # get_current_user, require_roles()
+│   │   ├── config.py                  # Pydantic Settings with env parsing and validators
+│   │   ├── logging.py                 # Structured application logging
+│   │   ├── security.py                # bcrypt password hashing + JWT encoding/decoding
+│   │   └── dependencies.py            # get_current_user, require_roles(), DB session dependency
 │   ├── db/
-│   │   ├── base.py                    # DeclarativeBase
-│   │   └── session.py                 # Lazy async engine + get_db()
+│   │   ├── base.py                    # DeclarativeBase with custom table naming
+│   │   └── session.py                 # Async engine, sessionmaker, and get_db context
 │   ├── models/
-│   │   ├── __init__.py                # Single import point for Alembic
-│   │   ├── user.py                    # User ORM model (auth fields included)
-│   │   ├── report.py                  # Report model (central table)
-│   │   ├── team.py                    # Team model
-│   │   ├── vehicle.py                 # Vehicle model
-│   │   └── report_status_history.py   # Audit trail
+│   │   ├── __init__.py                # Model registry for Alembic metadata
+│   │   ├── user.py                    # User model with role enumeration (citizen, municipal_officer, admin, driver)
+│   │   ├── report.py                  # Central Report model with display_id and GPS
+│   │   ├── team.py                    # Sanitation team entity
+│   │   ├── vehicle.py                 # Fleet vehicle entity
+│   │   ├── report_status_history.py   # Immutable audit trail of lifecycle transitions
+│   │   └── notification.py            # User-targeted alerts
 │   ├── schemas/
-│   │   ├── auth.py                    # Auth request/response schemas
-│   │   └── report.py                  # Report request/response schemas
+│   │   ├── ai.py                      # AI analysis request & response schemas
+│   │   ├── auth.py                    # Login, registration, token schemas
+│   │   ├── report.py                  # Report creation, update, triage schemas
+│   │   ├── team.py                    # Team validation schemas
+│   │   ├── vehicle.py                 # Vehicle validation schemas
+│   │   ├── analytics.py               # Aggregation & metrics schemas
+│   │   └── notification.py            # Notification event schemas
 │   ├── services/
-│   │   ├── auth.py                    # Registration, login, verify, reset
-│   │   ├── email.py                   # Brevo email service abstraction
-│   │   └── report.py                  # Report CRUD, status workflow, assignment
+│   │   ├── ai.py                      # Groq multimodal vision client with heuristic fallback
+│   │   ├── geocoding.py               # OpenStreetMap Nominatim client with coordinate fallback
+│   │   ├── duplicate_detection.py     # 0.001 deg (~111m) bounding box + 48-hour window filter
+│   │   ├── decision_engine.py         # Severity mapping and team/vehicle dispatch logic
+│   │   ├── cleanup_images.py          # Deterministic after-cleanup photo resolution
+│   │   ├── fleet.py                   # Team & vehicle state management
+│   │   ├── analytics.py               # KPI and SLA statistical calculations
+│   │   ├── email.py                   # Brevo transactional email sender
+│   │   ├── notification.py            # Notification dispatcher
+│   │   └── report.py                  # Report lifecycle workflow service
 │   └── api/
 │       └── v1/
-│           ├── router.py              # v1 aggregator
-│           ├── health.py              # GET /api/v1/health
-│           ├── auth.py                # Auth endpoints
-│           ├── users.py               # User management endpoints
-│           └── reports.py             # Report CRUD + workflow endpoints
-├── alembic/
-│   ├── env.py                         # Reads DATABASE_URL from settings
-│   └── versions/
-│       ├── 0001_initial_schema.py     # Initial migration (5 tables)
-│       └── 0002_add_auth_fields_to_users.py  # Auth fields on users
-├── tests/
-│   ├── test_health.py                 # Phase 1: health tests (9)
-│   ├── test_database.py               # Phase 2: model/schema tests (50)
-│   ├── test_auth.py                   # Phase 3: auth/authz tests (40)
-│   └── test_reports.py                # Phase 4: report workflow tests (49)
-├── alembic.ini
-├── .env.example                       # Copy → .env and fill in values
-├── .gitignore
-├── pyproject.toml
-├── requirements.txt
-└── README.md
+│           ├── router.py              # Root v1 APIRouter combining all modules
+│           ├── health.py              # GET /health liveness check
+│           ├── auth.py                # Register, login, me, password reset, email verify
+│           ├── users.py               # User profiles and administrative listing
+│           ├── reports.py             # Report CRUD, AI triage, assignment, status update, history
+│           ├── teams.py               # Fleet team endpoints
+│           ├── vehicles.py            # Municipal vehicle endpoints
+│           ├── analytics.py           # Real-time KPIs, fleet workload, performance, trends
+│           └── notifications.py       # In-app notifications listing and read marks
+├── scripts/
+│   └── seed_fleet.py                  # Seeding script for teams and vehicle inventory
+├── tests/                             # 13 automated test suites (210 passing tests)
+├── alembic.ini                        # Alembic configuration
+├── pyproject.toml                     # Python project metadata
+├── requirements.txt                   # Frozen production dependencies
+├── run_server.py                      # Application launch script
+└── README.md                          # This documentation file
 ```
 
 ---
 
 ## Prerequisites
 
-| Tool | Minimum Version | Note |
-|------|----------------|------|
-| Python | **3.12** | Do NOT use 3.14 — no `pydantic-core` wheel |
-| pip | 23+ | |
-| PostgreSQL | 14+ | Or a Supabase project |
-
-> **Important:** Always create the venv with `py -3.12 -m venv .venv` on Windows.
+- **Python**: `3.12.x` (Do NOT use Python 3.14 — `pydantic-core` and other binary wheels are not yet compatible).
+- **PostgreSQL**: Version 14+ (Local PostgreSQL instance or cloud Supabase PostgreSQL database).
+- **Git**: Installed and configured.
 
 ---
 
-## Setup
+## Environment Configuration
+
+Copy `.env.example` to `.env` in the `backend/` directory:
 
 ```powershell
-# 1. Clone and switch to the backend branch
-git clone <repo-url>
-cd SwachhLens\backend
-git checkout venky/backend-ai
+Copy-Item .env.example .env
+```
 
-# 2. Create a Python 3.12 virtual environment
+### Environment Variables Reference
+
+| Variable | Type | Default | Description |
+| :--- | :---: | :---: | :--- |
+| `APP_NAME` | string | `"SwachhLens API"` | Display name of the backend service |
+| `APP_VERSION` | string | `"0.1.0"` | Current semver release |
+| `DEBUG` | boolean | `false` | Enable verbose debugging and tracebacks |
+| `ENVIRONMENT` | string | `"development"` | Environment tag (`development`, `staging`, `production`) |
+| `HOST` | string | `"0.0.0.0"` | Network binding address |
+| `PORT` | integer | `8000` | Network binding port |
+| `CORS_ORIGINS` | string | `http://localhost:3000,...` | Comma-separated list of allowed frontend origins |
+| `DATABASE_URL` | string | - | Async PostgreSQL URI (`postgresql+psycopg://user:pass@host:5432/db`) |
+| `JWT_SECRET_KEY` | string | - | Minimum 32-character secret for signing access tokens |
+| `JWT_ALGORITHM` | string | `"HS256"` | JWT signing algorithm |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | integer | `60` | Token validity lifetime |
+| `EMAIL_VERIFICATION_EXPIRE_HOURS` | integer | `24` | Account verification link lifespan |
+| `PASSWORD_RESET_EXPIRE_MINUTES` | integer | `30` | Password reset link lifespan |
+| `GROQ_API_KEY` | string | - | Groq Cloud API Key for Qwen Vision inference |
+| `GROQ_MODEL` | string | `"qwen/qwen3.6-27b"` | Target Groq model identifier |
+| `GROQ_TIMEOUT` | integer | `30` | Max seconds before AI timeout fallback triggers |
+| `BREVO_API_KEY` | string | - | Brevo API key for transactional emails |
+| `BREVO_SENDER_EMAIL` | string | `"noreply@swachlens.app"` | Authorized sender email address |
+| `BREVO_SENDER_NAME` | string | `"SwachhLens"` | Sender name on outgoing emails |
+| `FRONTEND_BASE_URL` | string | `"http://localhost:3000"` | Base URL used to formulate email verification links |
+
+---
+
+## Installation & Local Setup
+
+```powershell
+# 1. Enter backend directory
+cd C:\PROJECTS\SwachhLens\backend
+
+# 2. Create isolated virtual environment using Python 3.12
 py -3.12 -m venv .venv
 
-# 3. Activate it (PowerShell)
-.venv\Scripts\Activate.ps1
+# 3. Activate virtual environment
+.\.venv\Scripts\Activate.ps1
 
 # 4. Install dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 5. Configure environment
-copy .env.example .env
-# Edit .env — fill in DATABASE_URL, JWT_SECRET_KEY, BREVO_API_KEY, etc.
-
-# 6. Apply migrations to your Supabase/Postgres database
-alembic upgrade head
-```
-
----
-
-## Environment Variables
-
-All values come from `.env` (never committed). Copy `.env.example` → `.env`.
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | **Yes** | `""` | PostgreSQL async connection string |
-| `JWT_SECRET_KEY` | **Yes (prod)** | `CHANGE-ME-...` | Long random secret for JWT signing |
-| `BREVO_API_KEY` | **Yes (email)** | `""` | Brevo transactional email API key |
-| `APP_NAME` | No | `SwachhLens API` | Swagger UI title |
-| `APP_VERSION` | No | `0.1.0` | API version |
-| `DEBUG` | No | `false` | SQLAlchemy query logging |
-| `ENVIRONMENT` | No | `development` | `development` \| `staging` \| `production` |
-| `HOST` | No | `0.0.0.0` | Uvicorn bind host |
-| `PORT` | No | `8000` | Uvicorn bind port |
-| `CORS_ORIGINS` | No | `http://localhost:3000,...` | Comma-separated allowed origins |
-| `LOG_LEVEL` | No | `INFO` | Log level |
-| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | JWT token lifetime (minutes) |
-| `EMAIL_VERIFICATION_EXPIRE_HOURS` | No | `24` | Verification token lifetime |
-| `PASSWORD_RESET_EXPIRE_MINUTES` | No | `30` | Reset token lifetime |
-| `BREVO_SENDER_EMAIL` | No | `noreply@swachlens.app` | From address |
-| `BREVO_SENDER_NAME` | No | `SwachhLens` | From display name |
-| `FRONTEND_BASE_URL` | No | `http://localhost:3000` | Base URL for email links |
-
----
-
-## Running the Server
-
-```powershell
-# Development (auto-reload)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Production
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-| URL | Description |
-|-----|-------------|
-| `http://localhost:8000/docs` | Swagger UI (interactive) |
-| `http://localhost:8000/redoc` | ReDoc |
-| `http://localhost:8000/api/v1/health` | Health check |
-| `http://localhost:8000/api/v1/auth/...` | Auth endpoints |
-
----
-
-## Database Architecture
-
-```
-FastAPI
-  ↓
-SQLAlchemy 2.x (async ORM)
-  ↓
-Alembic (schema migrations)
-  ↓
-psycopg3 driver (postgresql+psycopg://)
-  ↓
-PostgreSQL / Supabase PostgreSQL
-```
-
-### Tables
-
-| Table | Description |
-|-------|-------------|
-| `users` | Citizens + municipal officers/commissioners |
-| `reports` | Central waste report table |
-| `teams` | Municipal waste-response teams |
-| `vehicles` | Municipal vehicles |
-| `report_status_history` | Immutable audit trail of report status changes |
-
----
-
-## Authentication Architecture
-
-### Token-based (JWT)
-
-- **Registration** → bcrypt-hashed password stored; verification token (bcrypt-hashed) stored; plain token emailed via Brevo.
-- **Login** → credentials verified against bcrypt hash; HS256 JWT issued; contains `sub` (user UUID), `role`, `email`.
-- **All protected endpoints** → `Authorization: Bearer <token>` header required; JWT decoded and user fetched from DB.
-- **Role checks** → server-side only via `require_roles("commissioner")` dependency.
-
-### Roles
-
-| Role | Description |
-|------|-------------|
-| `citizen` | Files waste reports (default) |
-| `officer` | Municipal field officer |
-| `commissioner` | Senior official, full dashboard access |
-
-### Token security
-
-- Tokens stored in DB as **bcrypt hashes** — never plaintext.
-- Tokens are **single-use** — cleared on successful verify/reset.
-- Tokens have **expiry** enforced both at creation and at validation time.
-- Email enumeration protected on `forgot-password` (always 200).
-- Timing-attack resistant on login (always runs bcrypt even on unknown email).
-
-### Reusable dependencies
-
-```python
-from app.core.dependencies import get_current_user, require_active_user, require_roles
-
-# Any authenticated endpoint
-async def endpoint(user: User = Depends(get_current_user)): ...
-
-# Active users only
-async def endpoint(user: User = Depends(require_active_user)): ...
-
-# Role-gated (officers and commissioners)
-async def endpoint(user: User = Depends(require_roles("officer", "commissioner"))): ...
-```
-
----
-
-## Brevo Email Configuration
-
-1. Create an account at [app.brevo.com](https://app.brevo.com).
-2. Go to **SMTP & API → API Keys** → create a key.
-3. Set in `.env`:
-   ```
-   BREVO_API_KEY=your-api-key-here
-   BREVO_SENDER_EMAIL=noreply@yourdomain.com
-   BREVO_SENDER_NAME=SwachhLens
-   ```
-4. Verify your sender domain/email in Brevo settings.
-
-> The email service is abstracted in [`app/services/email.py`](app/services/email.py).  
-> In tests it is mocked via `app.dependency_overrides` — no real API calls are made.  
-> Email failures do **not** crash the API (logged as WARNING, 201 still returned).
-
----
-
-## Supabase Setup
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **Project Settings → Database → Connection string → Session Pooler**.
-3. Copy the URI and set in `.env`:
-   ```
-   DATABASE_URL=postgresql+psycopg://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
-   ```
-4. Run `alembic upgrade head` to create all tables.
-
----
-
-## Migrations
-
-```powershell
-# Apply all pending migrations
+# 5. Execute database migrations
 alembic upgrade head
 
-# Roll back one migration
+# 6. Seed initial municipal teams and vehicles
+python scripts\seed_fleet.py
+
+# 7. Start the FastAPI server
+python run_server.py
+```
+
+The server starts at `http://localhost:8000`.
+- **OpenAPI Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc UI**: `http://localhost:8000/redoc`
+
+---
+
+## Database Schema & Migrations
+
+Database migrations are managed via Alembic. The schema includes the following core models:
+
+```mermaid
+erDiagram
+    USERS ||--o{ REPORTS : "files"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    TEAMS ||--o{ REPORTS : "assigned_to"
+    VEHICLES ||--o{ REPORTS : "allocated_to"
+    REPORTS ||--o{ REPORT_STATUS_HISTORY : "tracks"
+
+    USERS {
+        uuid id PK
+        string email UK
+        string full_name
+        string role "citizen | municipal_officer | admin | driver"
+        string password_hash
+        boolean is_verified
+        boolean is_active
+        timestamp created_at
+    }
+
+    REPORTS {
+        uuid id PK
+        string display_id UK "SL-YYYY-XXXXXX"
+        uuid citizen_id FK
+        float latitude
+        float longitude
+        string address
+        string image_url
+        string cleanup_image_url
+        string waste_type
+        string volume_level
+        float severity_score "0.0 - 100.0"
+        float confidence
+        string priority "low | medium | high | critical"
+        string status "pending | analyzing | assigned | in_progress | completed | verified | duplicate"
+        uuid assigned_team_id FK
+        uuid assigned_vehicle_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    TEAMS {
+        uuid id PK
+        string name
+        string team_type
+        integer capacity
+        string status "available | dispatched | off_duty"
+        string ward
+    }
+
+    VEHICLES {
+        uuid id PK
+        string registration_number UK
+        string vehicle_type
+        float capacity_tons
+        string status "available | active | maintenance"
+    }
+
+    REPORT_STATUS_HISTORY {
+        uuid id PK
+        uuid report_id FK
+        string from_status
+        string to_status
+        string changed_by
+        string notes
+        timestamp changed_at
+    }
+
+    NOTIFICATIONS {
+        uuid id PK
+        uuid user_id FK
+        string title
+        string message
+        string notification_type
+        boolean is_read
+        timestamp created_at
+    }
+```
+
+### Migration History
+
+1. **`0001_initial_schema.py`** (Revision `0001`): Creates base tables: `users`, `reports`, `teams`, `vehicles`, and `report_status_history`.
+2. **`0002_add_auth_fields_to_users.py`** (Revision `0002`): Adds `is_active`, `is_verified`, `verification_token`, `verification_token_expires_at`, `reset_token`, and `reset_token_expires_at` to `users`.
+3. **`0003_create_notifications_table.py`** (Revision `d1d3d3e230f0`): Adds the `notifications` table for dispatch and verification alerts.
+
+```powershell
+# Upgrade to latest revision
+alembic upgrade head
+
+# Roll back by one revision
 alembic downgrade -1
 
-# Roll back to base (empty schema)
-alembic downgrade base
-
-# View migration history
-alembic history
-
-# Preview SQL without connecting (offline)
-alembic upgrade head --sql
-
-# Auto-generate from model changes
-alembic revision --autogenerate -m "describe your change"
+# Inspect current database revision
+alembic current
 ```
-
-### Migration history
-
-| Revision | Description |
-|----------|-------------|
-| `0001` | Initial schema: users, teams, vehicles, reports, report_status_history |
-| `0002` | Add auth fields to users: is_active, is_verified, verification/reset tokens |
 
 ---
 
-## API Reference
+## Fleet Initialization Script
 
-### Health
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/api/v1/health` | None | Liveness check |
-
-### Authentication (`/api/v1/auth`)
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/v1/auth/register` | None | Register new user |
-| `POST` | `/api/v1/auth/login` | None | Log in, receive JWT |
-| `GET` | `/api/v1/auth/me` | Bearer | Current user profile |
-| `POST` | `/api/v1/auth/verify-email` | None | Verify email with token |
-| `POST` | `/api/v1/auth/forgot-password` | None | Request password-reset email |
-| `POST` | `/api/v1/auth/reset-password` | None | Complete password reset |
-
-### Users (`/api/v1/users`)
-
-| Method | Path | Auth | Required Role |
-|--------|------|------|--------------|
-| `GET` | `/api/v1/users/me` | Bearer | Any |
-| `GET` | `/api/v1/users/{id}` | Bearer | `officer`, `commissioner` |
-| `GET` | `/api/v1/users` | Bearer | `commissioner` |
-
-### Reports (`/api/v1/reports`)
-
-| Method | Path | Auth | Required Role | Description |
-|--------|------|------|--------------|-------------|
-| `POST` | `/api/v1/reports` | Bearer | Any | Create a waste report |
-| `GET` | `/api/v1/reports` | Bearer | Any (citizen=own) | List reports (paginated, filtered) |
-| `GET` | `/api/v1/reports/{id}` | Bearer | Own / officer+ | Get a single report |
-| `PATCH` | `/api/v1/reports/{id}` | Bearer | Own(pending) / officer+ | Update a report |
-| `POST` | `/api/v1/reports/{id}/status` | Bearer | `officer`, `commissioner` | Change report status |
-| `POST` | `/api/v1/reports/{id}/assign` | Bearer | `officer`, `commissioner` | Assign team/vehicle |
-| `GET` | `/api/v1/reports/{id}/history` | Bearer | Own / officer+ | Get status history |
-
-#### Listing query parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `page` | int | Page number (1-indexed, default: 1) |
-| `page_size` | int | Items per page (1–100, default: 20) |
-| `status` | string | Filter by report status |
-| `priority` | string | Filter by priority |
-| `waste_type` | string | Filter by waste type |
-| `assigned_team_id` | UUID | Filter by assigned team |
-| `assigned_vehicle_id` | UUID | Filter by assigned vehicle |
-| `user_id` | UUID | Filter by reporter (officer+ only) |
-| `is_duplicate` | bool | Filter duplicates |
-| `created_after` | ISO 8601 | Created after date |
-| `created_before` | ISO 8601 | Created before date |
-| `sort_by` | string | Sort field (`created_at`, `updated_at`, `priority`, `status`, `severity_score`) |
-| `sort_order` | string | `asc` or `desc` (default: `desc`) |
-
-#### Status workflow
-
-```
-pending → analyzing → assigned → in_progress → completed → verified
-                                                          ↘ escalated → assigned
-(any non-terminal) → duplicate
-```
-
-Terminal states: `verified`, `duplicate` (no further transitions allowed).
-
----
-
-## Running Tests
+A dedicated seeding utility initializes standard municipal sanitation teams and fleet vehicles in `scripts/seed_fleet.py`:
 
 ```powershell
-# Run the full test suite (148 tests, no live DB needed)
-pytest -v
-
-# Reports workflow tests only
-pytest tests/test_reports.py -v
-
-# Auth tests only
-pytest tests/test_auth.py -v
-
-# Database model tests only
-pytest tests/test_database.py -v
-
-# Health tests only
-pytest tests/test_health.py -v
-
-# With coverage
-pip install pytest-cov
-pytest -v --cov=app --cov-report=term-missing
+python scripts\seed_fleet.py
 ```
 
-### Test summary
-
-| File | Tests | DB Required |
-|------|-------|-------------|
-| `test_health.py` | 9 | No |
-| `test_database.py` | 50 | No (metadata introspection) |
-| `test_auth.py` | 40 | No (in-memory SQLite + mocked Brevo) |
-| `test_reports.py` | 49 | No (in-memory SQLite) |
-| **Total** | **148** | **None** |
+This script is idempotent (safe to run multiple times) and seeds:
+- **Teams**: North Zone Quick Response, Central Debris Crew, Hazardous Materials Response Team, Wet Waste Collection Team, South Sweeper Unit.
+- **Vehicles**: Tipper Truck (TN-01-AB-1234), Compactor Unit (TN-01-CD-5678), Biohazard Van (TN-01-EF-9012), Mini Dumper (TN-01-GH-3456), Sweeper Vehicle (TN-01-IJ-7890).
 
 ---
 
-## Security Notes
+## Core Services Deep Dive
 
-- **Never commit `.env`** — it is in `.gitignore`.
-- **`JWT_SECRET_KEY`** must be a long, random secret in production:  
-  ```powershell
-  python -c "import secrets; print(secrets.token_urlsafe(64))"
-  ```
-- Passwords are hashed with **bcrypt** (passlib, 12 rounds) — never stored plaintext.
-- Verification and reset tokens are stored as **bcrypt hashes** — plain tokens only exist in memory long enough to be emailed.
-- Token lookups iterate only the matching candidate set, not the full table.
-- `forgot-password` always returns HTTP 200 regardless of email existence (no enumeration).
-- CORS is configured via the `CORS_ORIGINS` env var — restrict in production.
-- `BREVO_API_KEY` must never appear in source code, logs, or Git history.
+### Vision AI Pipeline (Groq)
+
+- **File**: `app/services/ai.py`
+- **Model**: `qwen/qwen3.6-27b` via Groq's Vision API with 30s timeout.
+- **Output Schema**:
+  - `waste_type`: Classified waste category string.
+  - `volume_level`: One of `'small'`, `'medium'`, `'large'`, `'very_large'`.
+  - `confidence`: Floating-point probability between `0.0` and `1.0`.
+  - `severity_score`: Continuous severity metric between `0.0` and `100.0`.
+  - `estimated_weight_kg`: Estimated mass in kilograms.
+  - `is_hazardous`: Boolean flag for biohazard/chemical risks.
+  - `is_recyclable`: Boolean flag for recyclable content.
+  - `recommended_action`: Operational instructions for sanitation workers.
+- **Resilience**: Pydantic validation handles JSON formatting; exceptions trigger fallback behavior without breaking report ingestion.
+
+### Reverse Geocoding & Address Fallback
+
+- **File**: `app/services/geocoding.py`
+- **Provider**: OpenStreetMap Nominatim with `User-Agent: SwachhLens-Civic-Platform/1.0 (contact@swachhlens.app)`.
+- **Resilience Guarantee**:
+  - The HTTP request is awaited with a strict 2-second timeout.
+  - Resolves road, neighborhood, suburb, and city into a clean string (e.g., *"Moolakadai, Chennai, Tamil Nadu"*).
+  - On timeout, network disconnect, or rate limiting, exceptions are caught and the service immediately returns formatted GPS coordinates (e.g., `13.12870°, 80.25121°`).
+  - Report creation is **never blocked** or failed due to geocoding.
+
+### Geospatial Duplicate Detection
+
+- **File**: `app/services/duplicate_detection.py`
+- **Methodology**:
+  - Evaluates active, non-duplicate reports created within the last `48 hours` (`time_window_hours = 48`).
+  - Applies a bounding box filter with `radius_degrees = 0.001` (approximately ~111 meters at the equator).
+  - Cross-checks classified `waste_type` compatibility when available.
+  - Matches are flagged with `duplicate = True` and linked to the existing incident to prevent duplicate fleet mobilization.
+
+### Rule-Based Decision Engine
+
+- **File**: `app/services/decision_engine.py`
+- **Deterministic Business Logic**:
+  - **Priority Mapping**:
+    - `severity < 30.0`: `low`
+    - `30.0 <= severity < 60.0`: `medium`
+    - `60.0 <= severity < 80.0`: `high`
+    - `severity >= 80.0`: `critical`
+  - **Team & Vehicle Dispatch Rules**:
+    1. If `is_hazardous` is true: Assigns **Hazardous Response Team** with a **Hazmat Truck**.
+    2. Else if `volume_level == "very_large"` or `estimated_weight_kg >= 500`: Assigns **Heavy Cleanup Crew** with a **Dump Truck**.
+    3. Else if `is_recyclable` is true: Assigns **Recycling Team** with a **Recycling Truck**.
+    4. Else if `volume_level == "large"` or `estimated_weight_kg >= 100`: Assigns **Standard Cleanup Crew** with a **Standard Garbage Truck**.
+    5. Default (routine maintenance): Assigns **General Maintenance** with a **Light Pickup**.
+
+### Deterministic Site Clearance Images
+
+- **File**: `app/services/cleanup_images.py`
+- **Purpose**:
+  - Provides deterministic, category-specific cleanup proof images when field operations mark a report as resolved.
+  - Supplies the municipal verification queue with photographic before/after comparisons so officers can audit site clearance.
+
+### Email & Notification Services
+
+- **Email Service** (`app/services/email.py`): Brevo REST API v3 wrapper for account activation tokens and password reset workflows.
+- **Notification Service** (`app/services/notification.py`): Generates in-app notifications stored in the database for citizen updates and municipal alerts.
 
 ---
 
-## Phase Roadmap
+## Complete REST API Reference
 
-| Phase | Status | Feature |
-|-------|--------|---------|
-| **1** | ✅ Done | FastAPI scaffold, config, CORS, logging, /health, tests |
-| **2** | ✅ Done | SQLAlchemy models, Alembic migrations, database foundation |
-| **3** | ✅ Done | JWT auth, RBAC, email verification, password reset, Brevo |
-| **4** | ✅ Done | Report CRUD APIs, status workflow & history, assignment, pagination/filtering |
-| 5 | 🔜 Next | AI waste analysis, duplicate detection |
-| 6 | ⬜ Planned | Explainable Decision Engine |
-| 7 | ⬜ Planned | Team/Vehicle assignment, cleanup verification |
-| 8 | ⬜ Planned | Dashboard KPIs, analytics |
+All routes are prefixed with `/api/v1`.
 
+### 1. Health (`/api/v1/health`)
+- `GET /health`: Liveness probe returning service name, version, and ISO-8601 UTC timestamp.
+
+### 2. Authentication (`/api/v1/auth`)
+- `POST /auth/register`: Register new citizen or officer account.
+- `POST /auth/login`: Authenticate credentials and receive JWT access token.
+- `GET /auth/me`: Retrieve currently authenticated user profile.
+- `POST /auth/verify-email`: Verify account using emailed verification token.
+- `POST /auth/forgot-password`: Request a password-reset token via email.
+- `POST /auth/reset-password`: Set new password using valid reset token.
+
+### 3. Users (`/api/v1/users`)
+- `GET /users/me`: Return current user profile details.
+- `GET /users/{user_id}`: Retrieve specific user profile.
+- `GET /users`: List users with pagination and role filters (Admin only).
+
+### 4. Reports (`/api/v1/reports`)
+- `POST /reports`: Submit a new waste complaint (photo, coordinates, optional address).
+- `GET /reports`: List complaints with pagination and filtering (status, priority, date).
+- `GET /reports/me`: List complaints filed by the authenticated user.
+- `GET /reports/{report_id}`: Detailed complaint view with AI metrics and friendly `display_id`.
+- `PATCH /reports/{report_id}`: Update complaint fields.
+- `POST /reports/{report_id}/status`: Transition report lifecycle status.
+- `POST /reports/{report_id}/assign`: Assign sanitation team and fleet vehicle.
+- `POST /reports/{report_id}/resolve`: Resolve report with optional post-cleanup image.
+- `POST /reports/{report_id}/analyze`: Trigger or re-run AI vision triage.
+- `GET /reports/{report_id}/history`: Retrieve complete status transition audit log.
+
+### 5. Teams (`/api/v1/teams`)
+- `GET /teams/`: List all municipal sanitation teams and availability.
+- `POST /teams/`: Register a new sanitation team.
+- `GET /teams/{team_id}`: Retrieve specific team details.
+- `PATCH /teams/{team_id}`: Update team status, capacity, or ward.
+
+### 6. Vehicles (`/api/v1/vehicles`)
+- `GET /vehicles/`: List all fleet vehicles and operational statuses.
+- `POST /vehicles/`: Register a new fleet vehicle.
+- `GET /vehicles/{vehicle_id}`: Retrieve vehicle telemetry and assignment status.
+- `PATCH /vehicles/{vehicle_id}`: Update vehicle status or capacity.
+
+### 7. Analytics (`/api/v1/analytics`)
+- `GET /analytics/summary`: Aggregate KPIs (total reports, pending, resolved, active teams).
+- `GET /analytics/fleet`: Fleet workload and crew deployment statistics.
+- `GET /analytics/performance`: Resolution velocity and performance metrics.
+- `GET /analytics/trends`: Temporal complaint volume trends over time.
+
+### 8. Notifications (`/api/v1/notifications`)
+- `GET /notifications`: Retrieve current user's in-app notification feed.
+- `GET /notifications/unread-count`: Retrieve number of unread notifications.
+- `PATCH /notifications/{notification_id}/read`: Mark specific notification as read.
+- `POST /notifications/mark-all-read`: Mark all user notifications as read.
+
+---
+
+## Automated Testing Suite (210 Tests)
+
+The backend test suite is built on `pytest` and `pytest-asyncio`. Tests utilize SQLite in-memory engines (`aiosqlite`) to guarantee isolated, lightning-fast execution.
+
+### Running Tests
+
+```powershell
+# Run all 210 tests with concise summary
+pytest -q
+
+# Run with verbose output
+pytest -v
+
+# Run a specific test suite
+pytest tests/test_reports.py -v
+```
+
+### Complete Test Suites Breakdown
+
+| Test Suite | File | Tests | Validation Domain |
+| :--- | :--- | :---: | :--- |
+| **Reports Workflow** | `tests/test_reports.py` | 52 | Report creation, state transitions, timeline generation, permissions |
+| **Database Models** | `tests/test_database.py` | 50 | SQLAlchemy models, UUID keys, relations, table constraints |
+| **Authentication** | `tests/test_auth.py` | 40 | Registration, login, password hashing, JWT claims, role gates |
+| **AI Vision Engine** | `tests/test_ai.py` | 23 | Groq vision client, prompt structure, JSON validation, heuristics |
+| **Duplicate Detection** | `tests/test_duplicate_detection.py` | 12 | 0.001° bounding box (~111m), 48h temporal cutoff, waste type matching |
+| **Health Probe** | `tests/test_health.py` | 9 | API uptime, service status, metadata response |
+| **Analytics & KPIs** | `tests/test_analytics.py` | 8 | Real-time aggregation, SLA tracking, fleet workload metrics |
+| **Notifications** | `tests/test_notifications.py` | 6 | In-app alerts, unread counts, status update notifications |
+| **Fleet Management** | `tests/test_fleet.py` | 4 | Team/vehicle capacities, allocation states, availability updates |
+| **CORS & Headers** | `tests/test_cors.py` | 3 | Allowed origins, preflight OPTIONS headers, security headers |
+| **Dispatch Reassignment** | `tests/test_reassign.py` | 1 | Team/vehicle reassignment, conflict prevention, audit trail |
+| **Fleet Seeding** | `tests/test_seed.py` | 1 | Seeding idempotency, initial records verification |
+| **E2E Verification** | `tests/test_e2e_verification.py` | 1 | Full lifecycle: report → AI → assign → dispatch → verify |
+| **Total Passing Tests** | | **210** | **100% Passing** |
+
+---
+
+## Security & RBAC Specifications
+
+1. **Password Security**: Passwords are encrypted using `bcrypt` (pinned `bcrypt==4.0.1` for Python 3.12 compatibility) via `passlib`.
+2. **Access Tokens**: Short-lived JSON Web Tokens signed with HMAC-SHA256 (`HS256`).
+3. **Role-Based Authorization (`require_roles`)**:
+   - `citizen`: Can create reports, view their own reports (`/reports/me`), update personal profile.
+   - `municipal_officer`: Can view all reports, reassign crews, verify clearances, access analytics.
+   - `driver`: Can view assigned routes and update operational field statuses.
+   - `admin`: Full administrative access to users, teams, and vehicle registries.
+4. **Data Sanitization**: Pydantic v2 models validate all incoming payload data types and schemas.

@@ -1,1 +1,80 @@
-Generic single-database configuration.
+# SwachhLens — Database Migrations (Alembic)
+
+This directory contains database schema migration scripts and environment configurations for the SwachhLens PostgreSQL backend.
+
+Migrations are managed with [Alembic](https://alembic.sqlalchemy.org/) and execute against asynchronous SQLAlchemy 2.0 engines (`postgresql+psycopg`).
+
+---
+
+## Migration History & Schema Evolution
+
+The database schema has evolved through 3 revisions located in `alembic/versions/`:
+
+| Revision ID | Description | Created Tables / Alterations |
+| :--- | :--- | :--- |
+| **`0001`** (`0001_initial_schema.py`) | Initial platform schema | Creates `users`, `reports`, `teams`, `vehicles`, and `report_status_history` tables with UUID primary keys and indexes. |
+| **`0002`** (`0002_add_auth_fields_to_users.py`) | User authentication fields | Adds `is_active`, `is_verified`, `verification_token`, `verification_token_expires_at`, `reset_token`, and `reset_token_expires_at` columns to `users`. |
+| **`d1d3d3e230f0`** (`0003_create_notifications_table.py`) | In-app notification queue | Creates `notifications` table referencing `users(id)` for dispatch alerts, status updates, and verification confirmations. |
+
+---
+
+## Configuration Architecture
+
+- **`env.py`**: Configured to read the application's single source of truth for the database URI from `app.core.config.settings.DATABASE_URL`.
+- **Async Execution**: Utilizes `asyncio.run()` with `engine.connect()` to execute migrations smoothly on asynchronous database drivers (`psycopg3`).
+- **Target Metadata**: Binds directly to `app.db.base.Base.metadata`, which imports all ORM entities from `app.models`.
+
+---
+
+## Common CLI Commands
+
+All commands should be executed from the `backend/` root directory with the Python virtual environment activated:
+
+```powershell
+cd C:\PROJECTS\SwachhLens\backend
+.\.venv\Scripts\Activate.ps1
+```
+
+### Apply Migrations
+```powershell
+# Upgrade schema to the latest revision
+alembic upgrade head
+
+# Upgrade by a single revision
+alembic upgrade +1
+```
+
+### Roll Back Migrations
+```powershell
+# Roll back the most recent revision
+alembic downgrade -1
+
+# Roll back to baseline (empty schema)
+alembic downgrade base
+```
+
+### Inspect Schema State
+```powershell
+# Display currently applied revision
+alembic current
+
+# View full chronological migration history
+alembic history --verbose
+```
+
+### Generate a New Migration
+```powershell
+# Create an auto-detected migration based on model changes
+alembic revision --autogenerate -m "describe_changes_here"
+
+# Create a blank migration file
+alembic revision -m "describe_changes_here"
+```
+
+---
+
+## Safety & Best Practices
+
+1. **Production Upgrades**: Always back up the database before executing `alembic upgrade head` in production.
+2. **Review Auto-generated Revisions**: Inspect auto-generated migration scripts in `alembic/versions/` to verify constraints, indexes, and column types before applying.
+3. **Environment Isolation**: Never commit raw connection credentials into `alembic.ini`. The runtime configuration dynamically pulls credentials from your `.env` file via Pydantic settings.
