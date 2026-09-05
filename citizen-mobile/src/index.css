@@ -1,0 +1,173 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  --primary: #168A5B;
+  --secondary: #22A06B;
+  --deepforest: #0F5132;
+  --text-primary: #17211B;
+  --text-secondary: #64736A;
+  --background: #F7FAF8;
+  --surface: #FFFFFF;
+  --light-green: #EAF6EF;
+  --border: #DCE7E1;
+}
+
+.dark {
+  --primary: #39B77A;
+  --secondary: #22A06B;
+  --deepforest: #0F5132;
+  --text-primary: #F2F7F4;
+  --text-secondary: #A9BBB1;
+  --background: #0D1712;
+  --surface: #14221B;
+  --light-green: #1A2C23;
+  --border: #294037;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Bengali', 'Noto Sans Gujarati', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism accents (Light & Dark) */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(220, 231, 225, 0.7);
+}
+
+.dark .glass-nav {
+  background: rgba(20, 34, 27, 0.88);
+  border-top: 1px solid rgba(41, 64, 55, 0.8);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(220, 231, 225, 0.8);
+}
+
+.dark .glass-card {
+  background: rgba(20, 34, 27, 0.92);
+  border: 1px solid rgba(41, 64, 55, 0.8);
+}
+
+.glass-cta {
+  background: linear-gradient(135deg, rgba(22, 138, 91, 0.95), rgba(15, 81, 50, 0.95));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 25px -4px rgba(22, 138, 91, 0.35);
+}
+
+.dark .glass-cta {
+  background: linear-gradient(135deg, rgba(57, 183, 122, 0.95), rgba(22, 138, 91, 0.95));
+  box-shadow: 0 10px 25px -4px rgba(57, 183, 122, 0.25);
+}
+
+.glass-pill {
+  background: rgba(234, 246, 239, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(22, 138, 91, 0.18);
+}
+
+.dark .glass-pill {
+  background: rgba(26, 44, 35, 0.85);
+  border: 1px solid rgba(57, 183, 122, 0.25);
+}
+
+/* Safe area insets for mobile PWAs */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0.5rem);
+}
+
+/* Subtle Nature Animations */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(4deg);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes leafDrift {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(6px, 12px) rotate(8deg);
+  }
+  66% {
+    transform: translate(-6px, 24px) rotate(-6deg);
+  }
+  100% {
+    transform: translate(0, 36px) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 7s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 5s ease-in-out infinite;
+}
+
+.animate-leaf-drift {
+  animation: leafDrift 12s ease-in-out infinite;
+}
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-float-slow,
+  .animate-pulse-subtle,
+  .animate-leaf-drift {
+    animation: none !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #DCE7E1;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #294037;
+}

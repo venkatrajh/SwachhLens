@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
 
 
 # ── Valid enum values (match DB CHECK constraints) ───────────────────────────
@@ -40,8 +40,8 @@ class ReportCreateRequest(BaseModel):
     address_label: str | None = Field(default=None, max_length=512)
 
     # Media
-    image_url: str | None = Field(default=None, max_length=2048)
-    video_url: str | None = Field(default=None, max_length=2048)
+    image_url: str | None = Field(default=None)
+    video_url: str | None = Field(default=None)
 
     # Classification (optional — AI may fill later)
     waste_type: str | None = Field(default=None, max_length=100)
@@ -120,6 +120,14 @@ class StatusTransitionRequest(BaseModel):
         max_length=255,
         description="Human-readable description of the transition",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_status_alias(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "status" in data and "new_status" not in data:
+                data["new_status"] = data["status"]
+        return data
 
     @field_validator("new_status")
     @classmethod
@@ -207,6 +215,13 @@ class ReportResponse(BaseModel):
     verified_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def display_id(self) -> str:
+        year = self.created_at.year if getattr(self, "created_at", None) else 2026
+        clean_hex = str(self.id).replace("-", "").upper()[:6]
+        return f"SL-{year}-{clean_hex}"
 
     model_config = {"from_attributes": True}
 

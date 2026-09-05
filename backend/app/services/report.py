@@ -21,6 +21,11 @@ from app.models.report_status_history import ReportStatusHistory
 from app.models.team import Team
 from app.models.vehicle import Vehicle
 from app.schemas.report import ReportCreateRequest, ReportUpdateRequest
+from app.services.ai import analyze_report_with_groq
+from app.services.duplicate_detection import find_duplicate_report
+from app.services.decision_engine import generate_recommendations
+from app.services.geocoding import reverse_geocode_coordinates
+from app.services.cleanup_images import get_cleanup_image_for_report
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +74,20 @@ async def create_report(
     Both operations happen in the same flush — atomic within the caller's
     transaction boundary.
     """
+    address_label = payload.address_label
+    if not address_label and payload.latitude is not None and payload.longitude is not None:
+        try:
+            address_label = await reverse_geocode_coordinates(payload.latitude, payload.longitude)
+        except Exception as exc:
+            logger.warning("Reverse geocoding failed gracefully: %s", exc)
+            address_label = f"{payload.latitude:.5f}°, {payload.longitude:.5f}°"
+
     report = Report(
         user_id=user_id,
         description=payload.description,
         latitude=payload.latitude,
         longitude=payload.longitude,
-        address_label=payload.address_label,
+        address_label=address_label,
         image_url=payload.image_url,
         video_url=payload.video_url,
         waste_type=payload.waste_type,
@@ -260,7 +273,7 @@ async def transition_status(
                 f"Report is in terminal status '{current}' — no transitions allowed."
             )
         raise ValueError(
-            f"Invalid transition: '{current}' → '{new_status}'. "
+            f"Invalid transition: '{current}' -> '{new_status}'. "
             f"Allowed: {', '.join(sorted(allowed))}."
         )
 
@@ -271,6 +284,9 @@ async def transition_status(
     # Update report
     report.status = new_status
     report.progress = STATUS_PROGRESS.get(new_status, report.progress)
+
+    if new_status in ("completed", "verified") and not report.after_image_url:
+        report.after_image_url = get_cleanup_image_for_report(report.waste_type, str(report.id))
 
     if new_status == "verified":
         report.verified_at = _now_utc()
@@ -286,7 +302,7 @@ async def transition_status(
     await db.refresh(history)
 
     logger.info(
-        "Report %s: %s → %s (label=%r)",
+        "Report %s: %s -> %s (label=%r)",
         report.id, current, new_status, label,
     )
     return history
@@ -374,3 +390,60 @@ async def get_status_history(
         .order_by(ReportStatusHistory.occurred_at.asc())
     )
     return list(result.scalars().all())
+
+
+# ── AI Analysis Pipeline ─────────────────────────────────────────────────────
+
+async def run_analysis_pipeline(
+    db: AsyncSession,
+    report: Report,
+) -> bool:
+    """
+    Run duplicate detection, Groq AI analysis, and decision engine synchronously.
+    Does NOT commit the transaction; caller must commit.
+    
+    Returns True if analysis succeeded (or it was a duplicate).
+    Returns False if AI analysis failed.
+    """
+    # 1. Duplicate detection
+    duplicate = await find_duplicate_report(db, report)
+    if duplicate:
+        report.duplicate = True
+        report.linked_report_id = duplicate.id
+        await transition_status(
+            db, report, "duplicate", label=f"Marked as duplicate of {duplicate.id}"
+        )
+        await db.flush()
+        await db.refresh(report)
+        return True
+
+    # 2. AI Analysis
+    ai_result = await analyze_report_with_groq(report.description, report.image_url)
+    if not ai_result:
+        return False
+
+    # 3. Update AI fields
+    report.waste_type = ai_result.waste_type
+    report.volume_level = ai_result.volume_level
+    report.confidence = ai_result.confidence
+    report.severity_score = ai_result.severity_score
+    report.estimated_weight_kg = ai_result.estimated_weight_kg
+    report.is_hazardous = ai_result.is_hazardous
+    report.is_recyclable = ai_result.is_recyclable
+
+    # 4. Decision Engine
+    recs = generate_recommendations(ai_result)
+    report.recommended_team = recs.get("recommended_team")
+    report.recommended_vehicle = recs.get("recommended_vehicle")
+    report.recommended_action = recs.get("recommended_action")
+    if "priority" in recs:
+        report.priority = recs["priority"]
+
+    # 5. Transition to analyzing if currently pending
+    if report.status == "pending":
+        await transition_status(db, report, "analyzing", label="AI analysis completed")
+
+    await db.flush()
+    await db.refresh(report)
+    return True
+

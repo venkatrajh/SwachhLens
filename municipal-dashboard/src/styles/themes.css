@@ -1,0 +1,231 @@
+/* ============================================================
+   SWACHHLENS THEMES — DUAL ACCENT LIQUID GLASS ARCHITECTURE
+   Dark Mode:  Midnight + Purple (#A78BFA, #8B5CF6)
+   Light Mode: Daylight + Rose   (#F43F5E, #FB7185)
+   ============================================================ */
+
+/* DARK THEME (Midnight + Purple Liquid Glass) */
+:root, [data-theme="dark"] {
+  /* Base Environmental Palette - Deep Midnight / Charcoal */
+  --bg-primary: #0A0E17;
+  --bg-secondary: #0E1422;
+  --bg-tertiary: #131C2D;
+
+  /* Level 1: Primary Liquid Glass (Navbar, Hero panels, Major Sections) */
+  --glass-level-1: rgba(14, 20, 34, 0.42);
+  --glass-navbar: rgba(13, 19, 32, 0.46);
+  --glass-sidebar: rgba(10, 15, 26, 0.58);
+  --glass-surface: rgba(15, 22, 38, 0.45);
+
+  /* Level 2: Secondary Liquid Glass (KPI Cards, Tables, Medium Panels) */
+  --glass-level-2: rgba(18, 26, 44, 0.52);
+  --glass-surface-strong: rgba(22, 31, 50, 0.60);
+  --surface-primary: rgba(18, 26, 44, 0.52);
+  --surface-secondary: rgba(255, 255, 255, 0.04);
+  --surface-tertiary: rgba(255, 255, 255, 0.07);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --surface-active: rgba(167, 139, 250, 0.16);
+
+  /* Level 3: Floating Liquid Glass (Modals, Dropdowns, Map Popups) */
+  --glass-level-3: rgba(12, 17, 30, 0.78);
+  --glass-modal: rgba(12, 17, 30, 0.82);
+
+  /* Borders & Specular Inner Highlights */
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-border-light: rgba(255, 255, 255, 0.18);
+  --glass-border-subtle: rgba(255, 255, 255, 0.07);
+  --glass-highlight: rgba(255, 255, 255, 0.18);
+  --glass-specular-edge: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(167, 139, 250, 0.18) 50%, rgba(255, 255, 255, 0.04) 100%);
+
+  /* Typography */
+  --text-primary: #F8FAFC;
+  --text-secondary: #A5B4C7;
+  --text-muted: #708095;
+  --text-inverse: #070B12;
+  --text-accent: #A78BFA;
+
+  /* Primary Accent & Ambient Purple */
+  --accent-primary: #A78BFA;
+  --accent-secondary: #8B5CF6;
+  --accent-primary-hover: #C4B5FD;
+  --accent-glow: rgba(167, 139, 250, 0.18);
+  --accent-subtle: rgba(167, 139, 250, 0.10);
+  --accent-border: rgba(167, 139, 250, 0.38);
+
+  /* Backward-compatible alias tokens */
+  --accent-cyan-glow: rgba(167, 139, 250, 0.18);
+  --accent-cyan-subtle: rgba(167, 139, 250, 0.10);
+
+  /* Semantic Municipal Status Colors (INDEPENDENT FROM THEME) */
+  --priority-critical: #FB7185;
+  --priority-critical-bg: rgba(251, 113, 133, 0.14);
+  --priority-critical-border: rgba(251, 113, 133, 0.32);
+
+  --priority-high: #F59E0B;
+  --priority-high-bg: rgba(245, 158, 11, 0.14);
+  --priority-high-border: rgba(245, 158, 11, 0.32);
+
+  --priority-medium: #A78BFA;
+  --priority-medium-bg: rgba(167, 139, 250, 0.14);
+  --priority-medium-border: rgba(167, 139, 250, 0.30);
+
+  --priority-low: #34D399;
+  --priority-low-bg: rgba(52, 211, 153, 0.14);
+  --priority-low-border: rgba(52, 211, 153, 0.32);
+
+  --status-completed: #34D399;
+  --status-completed-bg: rgba(52, 211, 153, 0.14);
+  --status-completed-border: rgba(52, 211, 153, 0.32);
+
+  --status-verified: #34D399;
+  --status-verified-bg: rgba(52, 211, 153, 0.18);
+
+  --status-assigned: #A78BFA;
+  --status-assigned-bg: rgba(167, 139, 250, 0.14);
+
+  --status-progress: #818CF8;
+  --status-progress-bg: rgba(129, 140, 248, 0.14);
+
+  --status-pending: #94A3B8;
+  --status-pending-bg: rgba(148, 163, 184, 0.12);
+
+  /* Borders & Shadows */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-focus: #A78BFA;
+
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 3px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 20px 45px -6px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 28px 65px -8px rgba(0, 0, 0, 0.65);
+  --shadow-floating: 0 20px 48px -6px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  /* Municipal Background Objects (Dark Mode - Charcoal / Graphite + Purple Rim Light) */
+  --obj-stroke: rgba(255, 255, 255, 0.38);
+  --obj-fill: rgba(24, 32, 48, 0.55);
+  --obj-fill-subtle: rgba(18, 26, 40, 0.40);
+  --obj-glow: #A78BFA;
+  --obj-glow-opacity: 0.45;
+  --obj-shadow: rgba(0, 0, 0, 0.7);
+  --ambient-object-light: #A78BFA;
+  --ambient-object-shadow: rgba(0, 0, 0, 0.65);
+
+  /* Leaflet Map Styling (Dark) */
+  --map-tile-filter: brightness(0.65) invert(1) contrast(3) hue-rotate(240deg) saturate(0.3) brightness(0.7);
+  --map-canvas-bg: #0c101a;
+}
+
+/* LIGHT THEME (Daylight + Rose Liquid Glass) */
+[data-theme="light"] {
+  /* Base Environmental Palette - Warm Daylight / Soft Crisp White */
+  --bg-primary: #F7F9FC;
+  --bg-secondary: #EDF1F6;
+  --bg-tertiary: #E2E8F0;
+
+  /* Level 1: Primary Liquid Glass (Light Translucent + Rose Reflections) */
+  --glass-level-1: rgba(255, 255, 255, 0.50);
+  --glass-navbar: rgba(255, 255, 255, 0.54);
+  --glass-sidebar: rgba(255, 255, 255, 0.62);
+  --glass-surface: rgba(255, 255, 255, 0.52);
+
+  /* Level 2: Secondary Liquid Glass */
+  --glass-level-2: rgba(255, 255, 255, 0.64);
+  --glass-surface-strong: rgba(255, 255, 255, 0.74);
+  --surface-primary: rgba(255, 255, 255, 0.64);
+  --surface-secondary: rgba(15, 23, 42, 0.035);
+  --surface-tertiary: rgba(15, 23, 42, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.9);
+  --surface-active: rgba(244, 63, 94, 0.12);
+
+  /* Level 3: Floating Liquid Glass */
+  --glass-level-3: rgba(255, 255, 255, 0.88);
+  --glass-modal: rgba(255, 255, 255, 0.90);
+
+  /* Borders & Specular Inner Highlights */
+  --glass-border: rgba(15, 23, 42, 0.11);
+  --glass-border-light: rgba(15, 23, 42, 0.16);
+  --glass-border-subtle: rgba(15, 23, 42, 0.06);
+  --glass-highlight: rgba(255, 255, 255, 0.95);
+  --glass-specular-edge: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(244, 63, 94, 0.18) 50%, rgba(255, 255, 255, 0.4) 100%);
+
+  /* Typography */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --text-accent: #F43F5E;
+
+  /* Primary Accent & Ambient Rose */
+  --accent-primary: #F43F5E;
+  --accent-secondary: #FB7185;
+  --accent-primary-hover: #E11D48;
+  --accent-glow: rgba(244, 63, 94, 0.14);
+  --accent-subtle: rgba(244, 63, 94, 0.08);
+  --accent-border: rgba(244, 63, 94, 0.34);
+
+  /* Backward-compatible alias tokens */
+  --accent-cyan-glow: rgba(244, 63, 94, 0.14);
+  --accent-cyan-subtle: rgba(244, 63, 94, 0.08);
+
+  /* Semantic Municipal Status Colors (INDEPENDENT FROM THEME) */
+  --priority-critical: #FB7185;
+  --priority-critical-bg: #FEF2F2;
+  --priority-critical-border: #FECACA;
+
+  --priority-high: #F59E0B;
+  --priority-high-bg: #FFFBEB;
+  --priority-high-border: #FDE68A;
+
+  --priority-medium: #F43F5E;
+  --priority-medium-bg: #FFF1F2;
+  --priority-medium-border: #FECDD3;
+
+  --priority-low: #34D399;
+  --priority-low-bg: #ECFDF5;
+  --priority-low-border: #A7F3D0;
+
+  --status-completed: #34D399;
+  --status-completed-bg: #ECFDF5;
+  --status-completed-border: #A7F3D0;
+
+  --status-verified: #34D399;
+  --status-verified-bg: #D1FAE5;
+
+  --status-assigned: #F43F5E;
+  --status-assigned-bg: #FFE4E6;
+
+  --status-progress: #818CF8;
+  --status-progress-bg: #EEF2FF;
+
+  --status-pending: #64748B;
+  --status-pending-bg: #F1F5F9;
+
+  /* Borders & Shadows */
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-medium: rgba(15, 23, 42, 0.14);
+  --border-strong: rgba(15, 23, 42, 0.22);
+  --border-focus: #F43F5E;
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 3px 6px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 12px 26px -3px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 20px 40px -4px rgba(15, 23, 42, 0.10);
+  --shadow-xl: 0 28px 60px -6px rgba(15, 23, 42, 0.12);
+  --shadow-floating: 0 20px 40px -6px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  /* Municipal Background Objects (Light Mode - Soft Gray / Graphite + Rose Rim Light) */
+  --obj-stroke: rgba(15, 23, 42, 0.40);
+  --obj-fill: rgba(255, 255, 255, 0.85);
+  --obj-fill-subtle: rgba(243, 246, 250, 0.65);
+  --obj-glow: #F43F5E;
+  --obj-glow-opacity: 0.35;
+  --obj-shadow: rgba(15, 23, 42, 0.12);
+  --ambient-object-light: #F43F5E;
+  --ambient-object-shadow: rgba(15, 23, 42, 0.15);
+
+  /* Leaflet Map Styling (Daylight Clean Map) */
+  --map-tile-filter: brightness(0.98) contrast(1.05) saturate(0.95);
+  --map-canvas-bg: #e9edf3;
+}

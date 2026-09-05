@@ -20,7 +20,9 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, Request
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,6 +85,36 @@ async def _notify_users(
         )
 
 
+async def get_report_create_payload(request: Request) -> ReportCreateRequest:
+    """Dynamically parses either JSON or multipart/form-data for report creation."""
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        data = {}
+        for key, value in form.items():
+            if key in ("latitude", "longitude"):
+                try:
+                    data[key] = float(value)
+                except ValueError:
+                    pass
+            elif key == "image":
+                if isinstance(value, str):
+                    data["image_url"] = value
+                else:
+                    data["image_url"] = "file_uploaded_unsupported_in_base64_mode"
+            else:
+                data[key] = value
+        try:
+            return ReportCreateRequest(**data)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors())
+    else:
+        try:
+            json_data = await request.json()
+            return ReportCreateRequest(**json_data)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors())
+
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
@@ -95,20 +127,27 @@ router = APIRouter(prefix="/reports", tags=["reports"])
     summary="Create a new waste report",
 )
 async def create_report(
-    payload: ReportCreateRequest,
     background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_active_user)],
     email_svc: Annotated[BrevoEmailService, Depends(get_email_service)],
+    payload: ReportCreateRequest = Depends(get_report_create_payload),
 ) -> ReportResponse:
     """Any authenticated active user can create a waste report."""
     report = await report_service.create_report(db, current_user.id, payload)
     
+    # Run analysis pipeline synchronously
+    success = await report_service.run_analysis_pipeline(db, report)
+    if not success:
+        logger.warning(f"AI analysis failed for report {report.id} on creation, leaving as pending.")
+    
+    # Notify users
     notify_ids = [current_user.id]
-    if payload.is_hazardous:
+    if report.is_hazardous:
         officers_res = await db.execute(select(User.id).where(User.role.in_(["officer", "commissioner"])))
         notify_ids.extend(officers_res.scalars().all())
     
+    # First, notify about creation
     await _notify_users(
         db=db,
         background_tasks=background_tasks,
@@ -119,6 +158,20 @@ async def create_report(
         title="Report Submitted",
         message="Your report has been received and is pending analysis.",
     )
+    
+    # If marked as duplicate, send another notification
+    if report.status == "duplicate":
+        await _notify_users(
+            db=db,
+            background_tasks=background_tasks,
+            email_svc=email_svc,
+            user_ids=[report.user_id],
+            report_id=report.id,
+            event_type="duplicate_detected",
+            title="Duplicate Report Detected",
+            message="Your report has been marked as a duplicate of an existing report.",
+        )
+        
     await db.commit()
     await db.refresh(report)
     
@@ -180,6 +233,40 @@ async def list_reports(
         sort_order=sort_order,
     )
 
+    pages = max(1, math.ceil(total / page_size))
+    return ReportListResponse(
+        items=[ReportResponse.model_validate(r) for r in reports],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
+
+
+# ── GET /reports/me ───────────────────────────────────────────────────────────
+
+@router.get(
+    "/me",
+    response_model=ReportListResponse,
+    summary="List reports for the authenticated citizen",
+)
+async def list_my_reports(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_active_user)],
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query("created_at", description="Sort field"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
+) -> ReportListResponse:
+    """Convenience endpoint returning only the authenticated citizen's reports."""
+    reports, total = await report_service.list_reports(
+        db,
+        user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
     pages = max(1, math.ceil(total / page_size))
     return ReportListResponse(
         items=[ReportResponse.model_validate(r) for r in reports],
@@ -495,15 +582,14 @@ async def analyze_report(
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    # 2. Duplicate detection
-    duplicate = await find_duplicate_report(db, report)
-    if duplicate:
-        report.duplicate = True
-        report.linked_report_id = duplicate.id
-        await report_service.transition_status(
-            db, report, "duplicate", label=f"Marked as duplicate of {duplicate.id}"
+    success = await report_service.run_analysis_pipeline(db, report)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI analysis failed or returned invalid output.",
         )
-        
+
+    if report.status == "duplicate":
         await _notify_users(
             db=db,
             background_tasks=background_tasks,
@@ -514,42 +600,9 @@ async def analyze_report(
             title="Duplicate Report Detected",
             message="Your report has been marked as a duplicate of an existing report.",
         )
-        
-        # Commit duplicate status and stop
-        await db.commit()
-        await db.refresh(report)
-        return ReportResponse.model_validate(report)
 
-    # 3. AI Analysis
-    ai_result = await analyze_report_with_groq(report.description, report.image_url)
-    if not ai_result:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI analysis failed or returned invalid output.",
-        )
-
-    # 4. Update AI fields
-    report.waste_type = ai_result.waste_type
-    report.volume_level = ai_result.volume_level
-    report.confidence = ai_result.confidence
-    report.severity_score = ai_result.severity_score
-    report.estimated_weight_kg = ai_result.estimated_weight_kg
-    report.is_hazardous = ai_result.is_hazardous
-    report.is_recyclable = ai_result.is_recyclable
-
-    # 5. Decision Engine
-    recs = generate_recommendations(ai_result)
-    report.recommended_team = recs["recommended_team"]
-    report.recommended_vehicle = recs["recommended_vehicle"]
-    report.recommended_action = recs["recommended_action"]
-    if "priority" in recs:
-        report.priority = recs["priority"]
-
-    # Keep in 'analyzing' state. Flush and refresh to get generated column values.
-    await db.flush()
-    await db.refresh(report)
     await db.commit()
-
+    await db.refresh(report)
     return ReportResponse.model_validate(report)
 
 

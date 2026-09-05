@@ -15,8 +15,8 @@ def test_e2e_verification(client: TestClient, mocker):
     assert res.json()['image_url'] == 'https://example.com/test.jpg'
     cit_user, cit_token = _create_user_directly(role='citizen')
     assert client.post(f'/api/v1/reports/{report_id}/analyze', headers=_auth(cit_token)).status_code == 403
-    mocker.patch('app.api.v1.reports.find_duplicate_report', return_value=None)
-    mock_ai = mocker.patch('app.api.v1.reports.analyze_report_with_groq', return_value=AIAnalysisResult(waste_type='electronics', volume_level='medium', confidence=0.85, severity_score=60, estimated_weight_kg=15.5, is_hazardous=True, is_recyclable=True, recommended_action='Handle'))
+    mocker.patch('app.services.report.find_duplicate_report', return_value=None)
+    mock_ai = mocker.patch('app.services.report.analyze_report_with_groq', return_value=AIAnalysisResult(waste_type='electronics', volume_level='medium', confidence=0.85, severity_score=60, estimated_weight_kg=15.5, is_hazardous=True, is_recyclable=True, recommended_action='Handle'))
     res_analyze = client.post(f'/api/v1/reports/{report_id}/analyze', headers=_auth(off_token))
     data = res_analyze.json()
     assert data['status'] == 'analyzing'
@@ -26,6 +26,6 @@ def test_e2e_verification(client: TestClient, mocker):
     assert data['recommended_team'] == 'Hazardous Response Team'
     payload2 = _create_report_payload()
     r2 = client.post('/api/v1/reports', json=payload2, headers=_auth(off_token)).json()['id']
-    mocker.patch('app.api.v1.reports.find_duplicate_report', return_value=Report(id=uuid.uuid4()))
+    mocker.patch('app.services.report.find_duplicate_report', return_value=Report(id=uuid.uuid4()))
     dup_res = client.post(f'/api/v1/reports/{r2}/analyze', headers=_auth(off_token))
     assert dup_res.json()['status'] == 'duplicate'

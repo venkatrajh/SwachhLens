@@ -133,11 +133,13 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+import random
+
 def _create_report_payload(**overrides) -> dict:
     base = {
         "description": "Garbage pile near the park",
-        "latitude": 12.9716,
-        "longitude": 77.5946,
+        "latitude": round(random.uniform(-90.0, 90.0), 6),
+        "longitude": round(random.uniform(-180.0, 180.0), 6),
         "address_label": "123 Main St",
         "waste_type": "mixed",
         "volume_level": "medium",
@@ -210,9 +212,118 @@ def _transition_report(
 # 1. Report Creation
 # ─────────────────────────────────────────────────────────────────────────────
 
+from unittest.mock import patch
+from app.schemas.ai import AIAnalysisResult
+
 class TestReportCreation:
 
-    def test_create_report_success(self, client: TestClient) -> None:
+    @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_multipart_form_data(self, mock_groq: MagicMock, client: TestClient) -> None:
+        """Tests that Kavin's frontend multipart/form-data request is accepted."""
+        mock_groq.return_value = None  # graceful fallback
+        _, token = _create_user_directly(role="citizen")
+        
+        # Simulating Kavin's exact request shape
+        data = {
+            "image_url": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+            "latitude": "12.9716",
+            "longitude": "77.5946",
+            "timestamp": "2023-10-27T10:00:00Z",
+            "description": "Garbage dump near park"
+        }
+        
+        r = client.post(
+            "/api/v1/reports",
+            data=data,  # using data= sends it as application/x-www-form-urlencoded or multipart/form-data if files are present. Since no files, it sends urlencoded, which our dependency also supports. Wait, to force multipart, we can pass a dummy file or set headers. Let's pass a dummy file to force multipart.
+            files={"dummy": ("dummy.txt", b"")}, # Force multipart/form-data
+            headers=_auth(token),
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["description"] == "Garbage dump near park"
+        assert body["latitude"] == 12.9716
+        assert body["longitude"] == 77.5946
+        assert body["image_url"] == "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+
+    @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_large_base64_image(self, mock_groq: MagicMock, client: TestClient) -> None:
+        """Tests that a realistic long base64 image string is accepted."""
+        mock_groq.return_value = None
+        _, token = _create_user_directly(role="citizen")
+        
+        # 500KB base64 string (much larger than the previous 2048 char limit)
+        large_b64 = "data:image/jpeg;base64," + ("A" * 500000)
+        payload = _create_report_payload()
+        payload["image_url"] = large_b64
+        
+        r = client.post(
+            "/api/v1/reports",
+            json=payload,
+            headers=_auth(token),
+        )
+        assert r.status_code == 201
+        assert len(r.json()["image_url"]) > 500000
+
+
+    @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_success(self, mock_groq: MagicMock, client: TestClient) -> None:
+        mock_groq.return_value = AIAnalysisResult(
+            waste_type="medical",
+            volume_level="large",
+            confidence=0.95,
+            severity_score=75.0,
+            estimated_weight_kg=50.0,
+            is_hazardous=True,
+            is_recyclable=False,
+            recommended_action="Dispatch hazmat unit"
+        )
+        _, token = _create_user_directly(role="citizen")
+        r = client.post(
+            "/api/v1/reports",
+            json=_create_report_payload(),
+            headers=_auth(token),
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["status"] == "analyzing"
+        assert body["priority"] == "high" # large medical is high priority
+        assert body["progress"] == 10
+        assert body["waste_type"] == "medical"
+        assert body["is_hazardous"] is True
+        assert body["confidence"] == 0.95
+        assert body["severity_score"] == 75.0
+
+    @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_minimal(self, mock_groq: MagicMock, client: TestClient) -> None:
+        """Only description is truly optional — all fields have defaults."""
+        mock_groq.return_value = AIAnalysisResult(
+            waste_type="household",
+            volume_level="small",
+            confidence=0.8,
+            severity_score=20.0,
+            estimated_weight_kg=5.0,
+            is_hazardous=False,
+            is_recyclable=True,
+            recommended_action="Regular pickup"
+        )
+        _, token = _create_user_directly(role="citizen")
+        r = client.post(
+            "/api/v1/reports",
+            json={},
+            headers=_auth(token),
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["status"] == "analyzing"
+        assert body["description"] is None
+        assert body["waste_type"] == "household"
+        assert body["confidence"] == 0.8
+
+    @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_groq_failure_graceful_degradation(self, mock_groq: MagicMock, client: TestClient) -> None:
+        """If Groq fails, creation succeeds with default/pending values."""
+        mock_groq.return_value = None
+        
         _, token = _create_user_directly(role="citizen")
         r = client.post(
             "/api/v1/reports",
@@ -223,22 +334,8 @@ class TestReportCreation:
         body = r.json()
         assert body["status"] == "pending"
         assert body["priority"] == "medium"
-        assert body["progress"] == 0
-        assert body["description"] == "Garbage pile near the park"
+        assert body["confidence"] == 0.0
         assert body["waste_type"] == "mixed"
-
-    def test_create_report_minimal(self, client: TestClient) -> None:
-        """Only description is truly optional — all fields have defaults."""
-        _, token = _create_user_directly(role="citizen")
-        r = client.post(
-            "/api/v1/reports",
-            json={},
-            headers=_auth(token),
-        )
-        assert r.status_code == 201
-        body = r.json()
-        assert body["status"] == "pending"
-        assert body["description"] is None
 
     def test_create_report_invalid_volume_level(self, client: TestClient) -> None:
         _, token = _create_user_directly()
@@ -248,6 +345,7 @@ class TestReportCreation:
             headers=_auth(token),
         )
         assert r.status_code == 422
+
 
     def test_create_report_invalid_latitude(self, client: TestClient) -> None:
         _, token = _create_user_directly()

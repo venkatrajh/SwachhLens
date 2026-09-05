@@ -20,8 +20,11 @@ def test_reassign_report(client: TestClient) -> None:
     team2_resp = client.post("/api/v1/teams/", json={"name": "Team B", "category": "cleaning", "active": True}, headers=_auth(officer_token))
     team2_id = team2_resp.json()["id"]
 
+    import random
+    lat = round(random.uniform(-90.0, 90.0), 6)
+    lon = round(random.uniform(-180.0, 180.0), 6)
     # 2. Create report and transition to analyzing
-    report_resp = client.post("/api/v1/reports/", json={"description": "Test", "latitude": 12.0, "longitude": 77.0}, headers=_auth(officer_token))
+    report_resp = client.post("/api/v1/reports/", json={"description": "Test", "latitude": lat, "longitude": lon}, headers=_auth(officer_token))
     report_id = report_resp.json()["id"]
     client.post(f"/api/v1/reports/{report_id}/status", json={"new_status": "analyzing"}, headers=_auth(officer_token))
 
