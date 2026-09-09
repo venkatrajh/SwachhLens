@@ -246,6 +246,32 @@ class TestReportCreation:
         assert body["image_url"] == "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
 
     @patch("app.services.report.analyze_report_with_groq")
+    def test_create_report_binary_upload_file(self, mock_groq: MagicMock, client: TestClient) -> None:
+        """Tests that uploading an actual binary file under 'image' converts to base64 data URI."""
+        mock_groq.return_value = None
+        _, token = _create_user_directly(role="citizen")
+
+        raw_bytes = b"fake_jpeg_binary_content"
+        data = {
+            "latitude": "12.9716",
+            "longitude": "77.5946",
+            "description": "Binary uploaded waste photo",
+        }
+        files = {
+            "image": ("waste.jpg", raw_bytes, "image/jpeg"),
+        }
+        r = client.post(
+            "/api/v1/reports",
+            data=data,
+            files=files,
+            headers=_auth(token),
+        )
+        assert r.status_code == 201
+        body = r.json()
+        assert body["description"] == "Binary uploaded waste photo"
+        assert body["image_url"].startswith("data:image/jpeg;base64,")
+
+    @patch("app.services.report.analyze_report_with_groq")
     def test_create_report_large_base64_image(self, mock_groq: MagicMock, client: TestClient) -> None:
         """Tests that a realistic long base64 image string is accepted."""
         mock_groq.return_value = None

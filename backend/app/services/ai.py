@@ -29,6 +29,54 @@ You MUST respond with a valid JSON object matching this EXACT schema:
 Do not include markdown code blocks. Output ONLY the raw JSON object.
 """
 
+VOLUME_LEVEL_MAP: dict[str, str] = {
+    "small": "small",
+    "low": "small",
+    "minor": "small",
+    "tiny": "small",
+    "medium": "medium",
+    "moderate": "medium",
+    "standard": "medium",
+    "large": "large",
+    "high": "large",
+    "big": "large",
+    "heavy": "large",
+    "very_large": "very_large",
+    "very large": "very_large",
+    "critical": "very_large",
+    "massive": "very_large",
+    "severe": "very_large",
+}
+
+
+def clean_and_parse_json(content: str) -> dict[str, Any]:
+    """
+    Robustly extract and parse JSON from model output:
+    1. Strip <think>...</think> reasoning blocks.
+    2. Strip markdown code fences (```json ... ```).
+    3. Direct JSON decode with regex fallback for outermost { ... }.
+    4. Normalize volume_level synonyms to valid schema literals.
+    """
+    cleaned = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE).strip()
+
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
+        if match:
+            data = json.loads(match.group(1).strip())
+        else:
+            raise
+
+    if isinstance(data, dict) and "volume_level" in data:
+        vol = str(data["volume_level"]).lower().strip()
+        data["volume_level"] = VOLUME_LEVEL_MAP.get(vol, data["volume_level"])
+
+    return data
+
+
 async def analyze_report_with_groq(description: str | None, image_url: str | None) -> AIAnalysisResult | None:
     """
     Calls the Groq API to analyze a waste report.
@@ -41,13 +89,13 @@ async def analyze_report_with_groq(description: str | None, image_url: str | Non
 
     # Construct the user message
     user_content: list[dict[str, Any]] = []
-    
+
     text_prompt = "Analyze this waste report."
     if description:
         text_prompt += f"\nDescription provided by citizen: {description}"
     else:
         text_prompt += "\nNo description provided."
-        
+
     user_content.append({"type": "text", "text": text_prompt})
 
     if image_url:
@@ -59,44 +107,72 @@ async def analyze_report_with_groq(description: str | None, image_url: str | Non
             }
         })
 
-    payload = {
-        "model": settings.groq_model,
+    model_name = settings.groq_model
+    payload: dict[str, Any] = {
+        "model": model_name,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content}
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
+        "max_tokens": 500,
     }
+    # For reasoning models (e.g. Qwen), disable thinking tokens to ensure immediate valid JSON
+    if "qwen" in model_name.lower():
+        payload["reasoning_effort"] = "none"
 
     headers = {
         "Authorization": f"Bearer {settings.groq_api_key}",
         "Content-Type": "application/json",
     }
 
+    raw_content = ""
     try:
         async with httpx.AsyncClient(timeout=settings.groq_timeout) as client:
-            response = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            response.raise_for_status()
-            
+            try:
+                response = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                # If json_validate_failed (model emitted non-JSON / thinking token), fallback without response_format constraint
+                if exc.response.status_code == 400 and "json_validate_failed" in exc.response.text:
+                    logger.warning("Groq json_validate_failed; retrying without response_format constraint...")
+                    fallback_payload = dict(payload)
+                    fallback_payload.pop("response_format", None)
+                    fallback_payload.pop("reasoning_effort", None)
+                    fallback_payload["max_tokens"] = 800
+                    response = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        json=fallback_payload,
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                # If media retrieval failed (e.g. 403 or unreachable image host), fallback to text-only analysis
+                elif exc.response.status_code == 400 and "failed to retrieve media" in exc.response.text.lower() and image_url:
+                    logger.warning("Groq failed to retrieve image media; retrying with text-only prompt...")
+                    text_only_content = [c for c in user_content if c.get("type") == "text"]
+                    text_payload = dict(payload)
+                    text_payload["messages"] = [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": text_only_content}
+                    ]
+                    response = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        json=text_payload,
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                else:
+                    raise exc
+
             data = response.json()
             raw_content = data["choices"][0]["message"]["content"]
-            
-            # Clean up markdown code blocks if the model ignored instructions
-            raw_content = raw_content.strip()
-            if raw_content.startswith("```json"):
-                raw_content = raw_content[7:]
-            elif raw_content.startswith("```"):
-                raw_content = raw_content[3:]
-            if raw_content.endswith("```"):
-                raw_content = raw_content[:-3]
-                
-            parsed_json = json.loads(raw_content.strip())
-            
+            parsed_json = clean_and_parse_json(raw_content)
+
             # Strict Pydantic validation
             result = AIAnalysisResult.model_validate(parsed_json)
             return result
@@ -107,8 +183,8 @@ async def analyze_report_with_groq(description: str | None, image_url: str | Non
     except httpx.HTTPStatusError as e:
         logger.error("Groq API HTTP error: %s - %s", e.response.status_code, e.response.text)
         return None
-    except json.JSONDecodeError:
-        logger.error("Failed to decode JSON from Groq response: %s", raw_content)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to decode JSON from Groq response: %s (raw: %s)", e, raw_content)
         return None
     except ValidationError as e:
         logger.error("Groq response failed schema validation: %s", e.errors())

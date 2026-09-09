@@ -14,6 +14,7 @@ GET    /reports/{id}/history   Get status history
 
 from __future__ import annotations
 
+import base64
 import logging
 import math
 import uuid
@@ -100,8 +101,16 @@ async def get_report_create_payload(request: Request) -> ReportCreateRequest:
             elif key == "image":
                 if isinstance(value, str):
                     data["image_url"] = value
+                elif hasattr(value, "read"):
+                    contents = await value.read()
+                    ct = getattr(value, "content_type", "image/jpeg") or "image/jpeg"
+                    b64_str = base64.b64encode(contents).decode("utf-8")
+                    data["image_url"] = f"data:{ct};base64,{b64_str}"
                 else:
-                    data["image_url"] = "file_uploaded_unsupported_in_base64_mode"
+                    data["image_url"] = str(value)
+            elif key == "video":
+                if isinstance(value, str):
+                    data["video_url"] = value
             else:
                 data[key] = value
         try:
@@ -135,11 +144,17 @@ async def create_report(
 ) -> ReportResponse:
     """Any authenticated active user can create a waste report."""
     report = await report_service.create_report(db, current_user.id, payload)
+    await db.commit()
+    await db.refresh(report)
     
-    # Run analysis pipeline synchronously
-    success = await report_service.run_analysis_pipeline(db, report)
-    if not success:
-        logger.warning(f"AI analysis failed for report {report.id} on creation, leaving as pending.")
+    # Run analysis pipeline synchronously with exception shielding (P0: report must survive AI failure)
+    try:
+        success = await report_service.run_analysis_pipeline(db, report)
+        if not success:
+            logger.warning(f"AI analysis failed for report {report.id} on creation, leaving as pending.")
+    except Exception as exc:
+        logger.exception(f"Unexpected error in analysis pipeline for report {report.id}: {exc}")
+        success = False
     
     # Notify users
     notify_ids = [current_user.id]

@@ -12,7 +12,7 @@ import { VerificationCard } from '../components/VerificationCard';
 import { LocationCard } from '../components/LocationCard';
 import { apiService } from '../services/api';
 import type { Report } from '../types/report';
-import { Clock, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { Clock, ChevronLeft, AlertTriangle, ExternalLink } from 'lucide-react';
 import { formatReportId, getCleanupImage } from '../utils/reportUtils';
 
 export const ReportDetails: React.FC = () => {
@@ -67,18 +67,50 @@ export const ReportDetails: React.FC = () => {
     <div className="relative min-h-screen bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col pb-12">
       <TopHeader
         title={report.display_id || formatReportId(report.id, report.created_at || report.reported_at || report.timestamp)}
-        subtitle={report.waste_type}
+        subtitle={report.waste_type || 'Waste Report'}
         showBack={true}
       />
       <NatureBackground />
 
       <div className="relative z-10 px-4 py-3 space-y-4">
+        {/* Prominent Duplicate Banner */}
+        {report.duplicate && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                {t('result.duplicateTitle', 'Duplicate Report Linked')}
+              </h2>
+            </div>
+            <p className="text-xs text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              {t(
+                'result.duplicateDesc',
+                'This report was identified as a duplicate of an existing incident and linked for municipal tracking.'
+              )}
+            </p>
+            {report.linked_report_id && (
+              <div className="pt-2 flex items-center justify-between border-t border-amber-200/60 dark:border-amber-900/60">
+                <span className="text-xs font-mono font-bold text-amber-900 dark:text-amber-200 truncate max-w-[180px]">
+                  Original: {report.linked_report_id.slice(0, 8)}...
+                </span>
+                <button
+                  onClick={() => navigate(`/reports/${report.linked_report_id}`)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform shadow-xs"
+                >
+                  <span>{t('result.viewExistingReport', 'View Original Issue')}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Main Photo Card */}
         {report.image_url && (
           <div className="relative rounded-3xl overflow-hidden bg-black aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card">
             <img
               src={report.image_url}
-              alt={report.waste_type}
+              alt={report.waste_type || 'Reported Waste'}
               className="w-full h-full object-cover"
             />
             <div className="absolute top-3 left-3 flex gap-2">

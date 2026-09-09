@@ -405,11 +405,13 @@ async def run_analysis_pipeline(
     Returns True if analysis succeeded (or it was a duplicate).
     Returns False if AI analysis failed.
     """
-    # 1. Duplicate detection
+    # 1. Initial Duplicate detection (proximity & time window, with reporter-provided waste_type)
     duplicate = await find_duplicate_report(db, report)
     if duplicate:
         report.duplicate = True
         report.linked_report_id = duplicate.id
+        if report.status == "pending":
+            await transition_status(db, report, "analyzing", label="AI analysis started")
         await transition_status(
             db, report, "duplicate", label=f"Marked as duplicate of {duplicate.id}"
         )
@@ -422,7 +424,11 @@ async def run_analysis_pipeline(
     if not ai_result:
         return False
 
-    # 3. Update AI fields
+    # 3. Transition to analyzing if currently pending
+    if report.status == "pending":
+        await transition_status(db, report, "analyzing", label="AI analysis completed")
+
+    # 4. Update AI fields
     report.waste_type = ai_result.waste_type
     report.volume_level = ai_result.volume_level
     report.confidence = ai_result.confidence
@@ -431,7 +437,7 @@ async def run_analysis_pipeline(
     report.is_hazardous = ai_result.is_hazardous
     report.is_recyclable = ai_result.is_recyclable
 
-    # 4. Decision Engine
+    # 5. Decision Engine
     recs = generate_recommendations(ai_result)
     report.recommended_team = recs.get("recommended_team")
     report.recommended_vehicle = recs.get("recommended_vehicle")
@@ -439,9 +445,14 @@ async def run_analysis_pipeline(
     if "priority" in recs:
         report.priority = recs["priority"]
 
-    # 5. Transition to analyzing if currently pending
-    if report.status == "pending":
-        await transition_status(db, report, "analyzing", label="AI analysis completed")
+    # 6. Secondary duplicate check (proximity, time window, and AI-classified waste_type)
+    duplicate_after_ai = await find_duplicate_report(db, report)
+    if duplicate_after_ai:
+        report.duplicate = True
+        report.linked_report_id = duplicate_after_ai.id
+        await transition_status(
+            db, report, "duplicate", label=f"Marked as duplicate of {duplicate_after_ai.id}"
+        )
 
     await db.flush()
     await db.refresh(report)
