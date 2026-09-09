@@ -25,6 +25,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
     role: str = Field(default="citizen")
     phone: str | None = Field(default=None, max_length=20)
+    ward: str | None = Field(default=None, max_length=100)
 
     @field_validator("role")
     @classmethod
@@ -88,13 +89,20 @@ class RegisterResponse(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Email verification
+# Email verification / OTP
 # ─────────────────────────────────────────────────────────────────────────────
 
 class VerifyEmailRequest(BaseModel):
     """Payload for POST /api/v1/auth/verify-email."""
 
     token: str = Field(..., min_length=1)
+    email: EmailStr | None = None
+
+
+class ResendVerificationRequest(BaseModel):
+    """Payload for POST /api/v1/auth/resend-verification."""
+
+    email: EmailStr
 
 
 class MessageResponse(BaseModel):
@@ -118,3 +126,29 @@ class PasswordResetConfirm(BaseModel):
 
     token: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Password change (Authenticated)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ChangePasswordRequest(BaseModel):
+    """Payload for POST /api/v1/auth/change-password."""
+
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Profile update
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UpdateProfileRequest(BaseModel):
+    """Payload for PATCH /api/v1/users/me."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    phone: str | None = Field(default=None, max_length=20)
+    ward: str | None = Field(default=None, max_length=100)
+    department: str | None = Field(default=None, max_length=255)
+    avatar_url: str | None = Field(default=None)
+

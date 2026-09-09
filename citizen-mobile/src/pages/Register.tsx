@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { TopHeader } from '../components/layout/TopHeader';
 import { NatureBackground } from '../components/layout/NatureBackground';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Mail, Lock, ArrowRight, MapPin, ShieldCheck } from 'lucide-react';
+import { User as UserIcon, Mail, Lock, ArrowRight, MapPin, AlertCircle } from 'lucide-react';
 
 export const Register: React.FC = () => {
   const { t } = useTranslation();
@@ -22,12 +22,11 @@ export const Register: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const success = await register(name, email, password);
-      if (success) {
-        navigate('/home');
-      } else {
-        setError('Registration failed. Email might be in use.');
-      }
+      await register(name, email, password, ward || undefined);
+      navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Registration failed. Email might already be in use.';
+      setError(detail);
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +47,7 @@ export const Register: React.FC = () => {
 
         {error && (
           <div className="p-3 mb-4 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-xs font-semibold flex items-center gap-2 border border-red-200 dark:border-red-900/60">
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <p>{error}</p>
           </div>
         )}
@@ -97,9 +96,10 @@ export const Register: React.FC = () => {
               <input
                 type="password"
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a strong password"
+                placeholder="Create a strong password (min 8 characters)"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-sm text-[#17211B] dark:text-[#F2F7F4] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 dark:focus:ring-[#39B77A]/40 focus:border-[#168A5B] shadow-xs"
               />
             </div>

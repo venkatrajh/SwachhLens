@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Shield, ArrowRight, Lock, AlertCircle, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -13,7 +13,7 @@ export const Login = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, loginWithGoogle } = useAuth();
+  const { login } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,19 +39,6 @@ export const Login = () => {
       navigate(from, { replace: true });
     } catch (err) {
       setErrorMessage(err.message || 'Authentication failed.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleSignInClick = async () => {
-    setIsSubmitting(true);
-    try {
-      await loginWithGoogle();
-      const from = location.state?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
-    } catch (err) {
-      setErrorMessage('Google authentication failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -326,16 +313,12 @@ export const Login = () => {
                   required
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                  <a
-                    href="#forgot"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert('Password reset instructions sent to registered municipal officer email.');
-                    }}
-                    style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}
+                  <Link
+                    to="/forgot-password"
+                    style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500, textDecoration: 'none' }}
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
               </div>
 
@@ -348,7 +331,7 @@ export const Login = () => {
                 iconPosition="right"
                 style={{ width: '100%', marginTop: '6px' }}
               >
-                SIGN IN
+                {isSubmitting ? 'AUTHENTICATING...' : 'SIGN IN'}
               </Button>
             </form>
 
@@ -356,62 +339,15 @@ export const Login = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                margin: '22px 0',
-                gap: '12px'
-              }}
-            >
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                OR
-              </span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-subtle)' }} />
-            </div>
-
-            {/* Google Sign-In Button */}
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={handleGoogleSignInClick}
-              disabled={isSubmitting}
-              style={{ width: '100%', justifyContent: 'center' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
-                <path
-                  fill="currentColor"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                />
-                <path
-                  fill="currentColor"
-                  fillOpacity="0.8"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24z"
-                />
-                <path
-                  fill="currentColor"
-                  fillOpacity="0.6"
-                  d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                />
-                <path
-                  fill="currentColor"
-                  fillOpacity="0.9"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                />
-              </svg>
-              Sign in with Google
-            </Button>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
-                marginTop: '22px',
+                marginTop: '28px',
                 fontSize: '11px',
                 color: 'var(--text-muted)'
               }}
             >
               <Lock size={12} />
-              <span>🔒 Secure Authority Access</span>
+              <span>🔒 Secure Authority Access • Role Protected</span>
             </div>
           </div>
         </div>

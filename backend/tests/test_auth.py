@@ -1,15 +1,17 @@
 """
-Phase 3 Authentication & Authorization Tests.
+Phase 1B Authentication & Security Test Suite.
 
-Strategy
---------
-- Uses FastAPI TestClient (synchronous wrapper over async app).
-- All database calls are replaced with an in-memory SQLite database
-  so tests run without a Supabase/PostgreSQL connection.
-- Brevo email service is overridden via FastAPI dependency_overrides
-  (not via unittest.mock.patch, which does not work reliably with
-  FastAPI's DI system) so NO real HTTP calls are ever made.
-- Phase 1 and Phase 2 tests continue to run unchanged.
+Tests:
+1. Registration (creation, validation, unverified default, SHA-256 OTP)
+2. Login (verified success, unverified 403 rejection, password checking)
+3. GET /auth/me (authenticated, expired token, tampered token)
+4. Email Verification & OTP (6-digit OTP, attempt lockout at 5, resend cooldown)
+5. Password Reset (O(1) SHA-256 token, single-use, expiry, bcrypt passwords)
+6. Password Change (authenticated, current password check, bcrypt hash)
+7. Profile Update (PATCH /users/me - name, phone, ward)
+8. Rate Limiting (in-memory sliding window, HTTP 429, Retry-After header)
+9. Role-based Authorization (commissioner, officer, citizen)
+10. Security Helpers (hashing, JWT roundtrip, token generation)
 """
 
 from __future__ import annotations
@@ -22,13 +24,21 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.security import create_access_token, hash_password
+from app.core.rate_limit import reset_all_limiters
+from app.core.security import (
+    create_access_token,
+    generate_token,
+    hash_password,
+    hash_token,
+    verify_password,
+)
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.models.user import User  # noqa: F401 — registers model on Base.metadata
+from app.models.user import User
 from app.services.email import BrevoEmailService, get_email_service
 
 # ── In-memory SQLite engine for tests ────────────────────────────────────────
@@ -62,39 +72,28 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-# ── Session-scoped table creation (sync, avoids event-loop scope conflict) ───
-
 @pytest.fixture(scope="session", autouse=True)
 def create_test_tables() -> None:
     """Create all SQLite tables once for the test session."""
     asyncio.run(_create_tables())
 
 
-# ── Per-test DB + email override ──────────────────────────────────────────────
-
 @pytest.fixture()
 def mock_email() -> MagicMock:
-    """
-    A MagicMock that replaces BrevoEmailService.
-
-    Registered via app.dependency_overrides so FastAPI DI uses it.
-    """
+    """A MagicMock that replaces BrevoEmailService."""
     svc = MagicMock(spec=BrevoEmailService)
     return svc
 
 
 @pytest.fixture(autouse=True)
 def override_dependencies(mock_email: MagicMock):
-    """
-    Override DB and email dependencies for every test.
-
-    Using dependency_overrides is the correct FastAPI way — it works
-    regardless of how deep a dependency is injected.
-    """
+    """Override DB, email service, and reset rate limiters before every test."""
+    reset_all_limiters()
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_email_service] = lambda: mock_email
     yield
     app.dependency_overrides.clear()
+    reset_all_limiters()
 
 
 @pytest.fixture()
@@ -103,9 +102,27 @@ def client() -> TestClient:
     return TestClient(app, raise_server_exceptions=True)
 
 
-# ── Helper factories ──────────────────────────────────────────────────────────
+# ── Helper functions ─────────────────────────────────────────────────────────
 
-def _register(client: TestClient, email: str = "test@example.com", **kwargs):
+def _verify_user_in_db(email: str) -> None:
+    """Mark a user account as verified directly in the test database."""
+    async def _v() -> None:
+        async with TestSessionLocal() as s:
+            await s.execute(
+                update(User).where(User.email == email.lower()).values(is_verified=True)
+            )
+            await s.commit()
+
+    asyncio.run(_v())
+
+
+def _register(
+    client: TestClient,
+    email: str = "test@example.com",
+    auto_verify: bool = True,
+    **kwargs,
+):
+    """Register a test user. If auto_verify=True, marks user as verified in DB."""
     payload = {
         "name": "Test User",
         "email": email,
@@ -113,7 +130,10 @@ def _register(client: TestClient, email: str = "test@example.com", **kwargs):
         "role": "citizen",
         **kwargs,
     }
-    return client.post("/api/v1/auth/register", json=payload)
+    r = client.post("/api/v1/auth/register", json=payload)
+    if r.status_code == 201 and auto_verify:
+        _verify_user_in_db(email)
+    return r
 
 
 def _login(
@@ -140,7 +160,7 @@ class TestRegistration:
 
     def test_register_success(self, client: TestClient) -> None:
         email = _unique_email("reg")
-        r = _register(client, email=email)
+        r = _register(client, email=email, auto_verify=False)
         assert r.status_code == 201
         body = r.json()
         assert body["user"]["email"] == email
@@ -155,34 +175,39 @@ class TestRegistration:
         assert "already exists" in r.json()["detail"].lower()
 
     def test_register_invalid_email(self, client: TestClient) -> None:
-        r = client.post("/api/v1/auth/register", json={
-            "name": "X", "email": "not-an-email", "password": "SecurePass1!"
-        })
+        r = client.post(
+            "/api/v1/auth/register",
+            json={"name": "X", "email": "not-an-email", "password": "SecurePass1!"},
+        )
         assert r.status_code == 422
 
     def test_register_short_password(self, client: TestClient) -> None:
-        r = client.post("/api/v1/auth/register", json={
-            "name": "X", "email": _unique_email("shortpw"), "password": "abc"
-        })
+        r = client.post(
+            "/api/v1/auth/register",
+            json={"name": "X", "email": _unique_email("shortpw"), "password": "abc"},
+        )
         assert r.status_code == 422
 
     def test_register_invalid_role(self, client: TestClient) -> None:
-        r = client.post("/api/v1/auth/register", json={
-            "name": "X", "email": _unique_email("badrole"),
-            "password": "SecurePass1!", "role": "superadmin"
-        })
+        r = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "X",
+                "email": _unique_email("badrole"),
+                "password": "SecurePass1!",
+                "role": "superadmin",
+            },
+        )
         assert r.status_code == 422
 
     def test_register_password_hash_not_in_response(self, client: TestClient) -> None:
-        r = _register(client, email=_unique_email("nohash"))
+        r = _register(client, email=_unique_email("nohash"), auto_verify=False)
         body = r.json()
         assert "password_hash" not in body
         assert "password_hash" not in body.get("user", {})
 
-    def test_register_verification_token_not_in_response(
-        self, client: TestClient
-    ) -> None:
-        r = _register(client, email=_unique_email("notok"))
+    def test_register_verification_token_not_in_response(self, client: TestClient) -> None:
+        r = _register(client, email=_unique_email("notok"), auto_verify=False)
         body = r.json()
         assert "verification_token" not in body
         assert "verification_token" not in body.get("user", {})
@@ -190,8 +215,26 @@ class TestRegistration:
     def test_register_triggers_verification_email(
         self, client: TestClient, mock_email: MagicMock
     ) -> None:
-        _register(client, email=_unique_email("emailsent"))
+        _register(client, email=_unique_email("emailsent"), auto_verify=False)
         mock_email.send_verification_email.assert_called_once()
+
+    def test_register_verification_token_stored_as_sha256(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("sha256tok")
+        _register(client, email=email, auto_verify=False)
+        raw_token = mock_email.send_verification_email.call_args.kwargs["token"]
+
+        async def _check_db() -> None:
+            async with TestSessionLocal() as s:
+                u = await s.scalar(select(User).where(User.email == email))
+                assert u is not None
+                assert u.verification_token == hash_token(raw_token)
+                assert len(u.verification_token) == 64
+                assert not u.verification_token.startswith("$2")
+                assert u.verification_token != raw_token
+
+        asyncio.run(_check_db())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -200,9 +243,9 @@ class TestRegistration:
 
 class TestLogin:
 
-    def test_login_success(self, client: TestClient) -> None:
+    def test_login_verified_success(self, client: TestClient) -> None:
         email = _unique_email("loginok")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         r = _login(client, email=email)
         assert r.status_code == 200
         body = r.json()
@@ -210,9 +253,18 @@ class TestLogin:
         assert body["token_type"] == "bearer"
         assert body["expires_in"] > 0
 
+    def test_login_unverified_blocked(self, client: TestClient) -> None:
+        """Unverified accounts must be rejected with HTTP 403 and receive no token."""
+        email = _unique_email("unverified")
+        _register(client, email=email, auto_verify=False)
+        r = _login(client, email=email)
+        assert r.status_code == 403
+        assert "not verified" in r.json()["detail"].lower()
+        assert "access_token" not in r.json()
+
     def test_login_wrong_password(self, client: TestClient) -> None:
         email = _unique_email("badpw")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         r = _login(client, email=email, password="WrongPassword!")
         assert r.status_code == 401
 
@@ -222,10 +274,9 @@ class TestLogin:
 
     def test_login_inactive_user(self, client: TestClient) -> None:
         email = _unique_email("inactive")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
 
         async def _deactivate() -> None:
-            from sqlalchemy import update
             async with TestSessionLocal() as s:
                 await s.execute(
                     update(User).where(User.email == email).values(is_active=False)
@@ -238,7 +289,7 @@ class TestLogin:
 
     def test_login_token_does_not_contain_password(self, client: TestClient) -> None:
         email = _unique_email("nopwintok")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         r = _login(client, email=email)
         token = r.json()["access_token"]
         assert "SecurePass" not in token
@@ -252,7 +303,7 @@ class TestMe:
 
     def test_me_authenticated(self, client: TestClient) -> None:
         email = _unique_email("meauth")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         token = _login(client, email=email).json()["access_token"]
         r = client.get("/api/v1/auth/me", headers=_auth_header(token))
         assert r.status_code == 200
@@ -275,10 +326,9 @@ class TestMe:
 
     def test_me_expired_token(self, client: TestClient) -> None:
         email = _unique_email("meexp")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
 
         async def _get_id() -> str:
-            from sqlalchemy import select
             async with TestSessionLocal() as s:
                 u = await s.scalar(select(User).where(User.email == email))
                 return str(u.id)
@@ -292,7 +342,7 @@ class TestMe:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Email verification
+# 4. Email verification & OTP
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestEmailVerification:
@@ -300,8 +350,7 @@ class TestEmailVerification:
     def _register_and_capture_token(
         self, client: TestClient, mock_email: MagicMock, email: str
     ) -> str:
-        """Register and return the plain verification token passed to email svc."""
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=False)
         return mock_email.send_verification_email.call_args.kwargs["token"]
 
     def test_verify_email_success(
@@ -310,6 +359,21 @@ class TestEmailVerification:
         email = _unique_email("verifyok")
         token = self._register_and_capture_token(client, mock_email, email)
         r = client.post("/api/v1/auth/verify-email", json={"token": token})
+        assert r.status_code == 200
+        assert "verified" in r.json()["message"].lower()
+
+        # Login should now succeed
+        assert _login(client, email=email).status_code == 200
+
+    def test_verify_email_with_email_identifier(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("verifyident")
+        token = self._register_and_capture_token(client, mock_email, email)
+        r = client.post(
+            "/api/v1/auth/verify-email",
+            json={"token": token, "email": email},
+        )
         assert r.status_code == 200
         assert "verified" in r.json()["message"].lower()
 
@@ -339,7 +403,7 @@ class TestEmailVerification:
                     auth_provider="local",
                     is_active=True,
                     is_verified=False,
-                    verification_token=hash_password(plain),
+                    verification_token=hash_token(plain),
                     verification_token_expires_at=(
                         datetime.now(tz=timezone.utc) - timedelta(hours=1)
                     ),
@@ -351,6 +415,56 @@ class TestEmailVerification:
         r = client.post("/api/v1/auth/verify-email", json={"token": plain})
         assert r.status_code == 400
         assert "expired" in r.json()["detail"].lower()
+
+    def test_verify_email_max_5_attempts_lockout(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("lockout")
+        self._register_and_capture_token(client, mock_email, email)
+
+        # 4 incorrect attempts
+        for _ in range(4):
+            r = client.post(
+                "/api/v1/auth/verify-email",
+                json={"token": "000000", "email": email},
+            )
+            assert r.status_code == 400
+            assert "remaining" in r.json()["detail"].lower()
+
+        # 5th incorrect attempt -> locks out / invalidates
+        r5 = client.post(
+            "/api/v1/auth/verify-email",
+            json={"token": "000000", "email": email},
+        )
+        assert r5.status_code == 400
+        assert "too many" in r5.json()["detail"].lower()
+
+    def test_resend_verification_cooldown(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("cooldown")
+        _register(client, email=email, auto_verify=False)
+
+        # Simulate that 70 seconds have passed since registration
+        async def _set_past_cooldown() -> None:
+            async with TestSessionLocal() as s:
+                await s.execute(
+                    update(User)
+                    .where(User.email == email.lower())
+                    .values(verification_sent_at=datetime.now(timezone.utc) - timedelta(seconds=70))
+                )
+                await s.commit()
+
+        asyncio.run(_set_past_cooldown())
+
+        # First resend should succeed now that cooldown elapsed
+        r1 = client.post("/api/v1/auth/resend-verification", json={"email": email})
+        assert r1.status_code == 200
+
+        # Immediate second resend should hit 60-second cooldown
+        r2 = client.post("/api/v1/auth/resend-verification", json={"email": email})
+        assert r2.status_code == 429
+        assert "wait" in r2.json()["detail"].lower()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -371,7 +485,7 @@ class TestPasswordReset:
         self, client: TestClient, mock_email: MagicMock
     ) -> None:
         email = _unique_email("forgotok")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         r = client.post("/api/v1/auth/forgot-password", json={"email": email})
         assert r.status_code == 200
         mock_email.send_password_reset_email.assert_called_once()
@@ -380,13 +494,14 @@ class TestPasswordReset:
         self, client: TestClient, mock_email: MagicMock
     ) -> None:
         email = _unique_email("resetok")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         client.post("/api/v1/auth/forgot-password", json={"email": email})
         token = mock_email.send_password_reset_email.call_args.kwargs["token"]
 
-        r = client.post("/api/v1/auth/reset-password", json={
-            "token": token, "new_password": "NewSecure1!",
-        })
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "new_password": "NewSecure1!"},
+        )
         assert r.status_code == 200
 
         # Old password must no longer work
@@ -395,25 +510,28 @@ class TestPasswordReset:
         assert _login(client, email=email, password="NewSecure1!").status_code == 200
 
     def test_reset_password_invalid_token(self, client: TestClient) -> None:
-        r = client.post("/api/v1/auth/reset-password", json={
-            "token": "garbage", "new_password": "NewSecure1!"
-        })
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": "garbage", "new_password": "NewSecure1!"},
+        )
         assert r.status_code == 400
 
     def test_reset_password_token_reuse_prevented(
         self, client: TestClient, mock_email: MagicMock
     ) -> None:
         email = _unique_email("resetreuse")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         client.post("/api/v1/auth/forgot-password", json={"email": email})
         token = mock_email.send_password_reset_email.call_args.kwargs["token"]
 
-        client.post("/api/v1/auth/reset-password", json={
-            "token": token, "new_password": "NewSecure1!"
-        })
-        r = client.post("/api/v1/auth/reset-password", json={
-            "token": token, "new_password": "AnotherPass1!"
-        })
+        client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "new_password": "NewSecure1!"},
+        )
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "new_password": "AnotherPass1!"},
+        )
         assert r.status_code == 400
 
     def test_reset_password_expired_token(self, client: TestClient) -> None:
@@ -429,7 +547,7 @@ class TestPasswordReset:
                     auth_provider="local",
                     is_active=True,
                     is_verified=True,
-                    reset_token=hash_password(plain),
+                    reset_token=hash_token(plain),
                     reset_token_expires_at=(
                         datetime.now(tz=timezone.utc) - timedelta(minutes=1)
                     ),
@@ -438,9 +556,10 @@ class TestPasswordReset:
                 await s.commit()
 
         asyncio.run(_setup())
-        r = client.post("/api/v1/auth/reset-password", json={
-            "token": plain, "new_password": "NewPass1!"
-        })
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": plain, "new_password": "NewPass1!"},
+        )
         assert r.status_code == 400
         assert "expired" in r.json()["detail"].lower()
 
@@ -448,24 +567,183 @@ class TestPasswordReset:
         self, client: TestClient, mock_email: MagicMock
     ) -> None:
         email = _unique_email("resetshort")
-        _register(client, email=email)
+        _register(client, email=email, auto_verify=True)
         client.post("/api/v1/auth/forgot-password", json={"email": email})
         token = mock_email.send_password_reset_email.call_args.kwargs["token"]
-        r = client.post("/api/v1/auth/reset-password", json={
-            "token": token, "new_password": "short"
-        })
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "new_password": "short"},
+        )
         assert r.status_code == 422
+
+    def test_reset_token_stored_as_sha256(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("sha256rst")
+        _register(client, email=email, auto_verify=True)
+        client.post("/api/v1/auth/forgot-password", json={"email": email})
+        raw_token = mock_email.send_password_reset_email.call_args.kwargs["token"]
+
+        async def _check_db() -> None:
+            async with TestSessionLocal() as s:
+                u = await s.scalar(select(User).where(User.email == email))
+                assert u is not None
+                assert u.reset_token == hash_token(raw_token)
+                assert len(u.reset_token) == 64
+                assert not u.reset_token.startswith("$2")
+                assert u.reset_token != raw_token
+
+        asyncio.run(_check_db())
+
+    def test_password_hash_still_uses_bcrypt_after_reset(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("bcryptchk")
+        _register(client, email=email, auto_verify=True)
+        client.post("/api/v1/auth/forgot-password", json={"email": email})
+        raw_token = mock_email.send_password_reset_email.call_args.kwargs["token"]
+
+        r = client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": raw_token, "new_password": "NewSecurePass1!"},
+        )
+        assert r.status_code == 200
+
+        async def _check_pw() -> None:
+            async with TestSessionLocal() as s:
+                u = await s.scalar(select(User).where(User.email == email))
+                assert u is not None
+                assert u.password_hash.startswith("$2b$")
+                assert u.reset_token is None
+
+        asyncio.run(_check_pw())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Role-based authorization
+# 6. Change Password (Authenticated)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestChangePassword:
+
+    def test_change_password_success(self, client: TestClient) -> None:
+        email = _unique_email("chgpass")
+        _register(client, email=email, auto_verify=True)
+        token = _login(client, email=email).json()["access_token"]
+
+        r = client.post(
+            "/api/v1/auth/change-password",
+            headers=_auth_header(token),
+            json={
+                "current_password": "SecurePass1!",
+                "new_password": "BrandNewPass123!",
+            },
+        )
+        assert r.status_code == 200
+        assert "successfully" in r.json()["message"].lower()
+
+        # Old password no longer works
+        assert _login(client, email=email, password="SecurePass1!").status_code == 401
+        # New password works
+        assert _login(client, email=email, password="BrandNewPass123!").status_code == 200
+
+    def test_change_password_wrong_current(self, client: TestClient) -> None:
+        email = _unique_email("chgwrong")
+        _register(client, email=email, auto_verify=True)
+        token = _login(client, email=email).json()["access_token"]
+
+        r = client.post(
+            "/api/v1/auth/change-password",
+            headers=_auth_header(token),
+            json={
+                "current_password": "IncorrectPassword!",
+                "new_password": "BrandNewPass123!",
+            },
+        )
+        assert r.status_code == 400
+        assert "incorrect" in r.json()["detail"].lower()
+
+    def test_change_password_same_password(self, client: TestClient) -> None:
+        email = _unique_email("chgsame")
+        _register(client, email=email, auto_verify=True)
+        token = _login(client, email=email).json()["access_token"]
+
+        r = client.post(
+            "/api/v1/auth/change-password",
+            headers=_auth_header(token),
+            json={
+                "current_password": "SecurePass1!",
+                "new_password": "SecurePass1!",
+            },
+        )
+        assert r.status_code == 400
+        assert "same" in r.json()["detail"].lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Profile Update (PATCH /users/me)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestProfileUpdate:
+
+    def test_update_profile_me_success(self, client: TestClient) -> None:
+        email = _unique_email("profupd")
+        _register(client, email=email, auto_verify=True)
+        token = _login(client, email=email).json()["access_token"]
+
+        r = client.patch(
+            "/api/v1/users/me",
+            headers=_auth_header(token),
+            json={
+                "name": "Updated Citizen",
+                "phone": "+91 9988776655",
+                "ward": "Ward 42 - North Zone",
+            },
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["name"] == "Updated Citizen"
+        assert body["phone"] == "+91 9988776655"
+        assert body["ward"] == "Ward 42 - North Zone"
+
+    def test_update_profile_unauthenticated(self, client: TestClient) -> None:
+        r = client.patch(
+            "/api/v1/users/me",
+            json={"name": "Hacker"},
+        )
+        assert r.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Rate Limiting
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRateLimiting:
+
+    def test_rate_limit_login_exceeded(self, client: TestClient) -> None:
+        """Rapid repeated login requests must trigger HTTP 429 Too Many Requests."""
+        email = _unique_email("ratelimit")
+        _register(client, email=email, auto_verify=True)
+
+        responses = []
+        # login_limiter is configured for 10 requests per 60 seconds
+        for _ in range(12):
+            responses.append(_login(client, email=email))
+
+        status_codes = [r.status_code for r in responses]
+        assert 429 in status_codes
+        r_429 = [r for r in responses if r.status_code == 429][0]
+        assert "Retry-After" in r_429.headers
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Role-based authorization
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestRoleAuthorization:
 
     def _make_token(self, client: TestClient, role: str) -> str:
         email = _unique_email(role)
-        _register(client, email=email, role=role)
+        _register(client, email=email, role=role, auto_verify=True)
         return _login(client, email=email).json()["access_token"]
 
     def test_commissioner_can_list_users(self, client: TestClient) -> None:
@@ -486,7 +764,7 @@ class TestRoleAuthorization:
 
     def test_officer_can_get_user_by_id(self, client: TestClient) -> None:
         citizen_email = _unique_email("citizenget")
-        reg_r = _register(client, email=citizen_email, role="citizen")
+        reg_r = _register(client, email=citizen_email, role="citizen", auto_verify=True)
         citizen_id = reg_r.json()["user"]["id"]
         officer_token = self._make_token(client, "officer")
         r = client.get(
@@ -496,7 +774,7 @@ class TestRoleAuthorization:
 
     def test_citizen_cannot_get_user_by_id(self, client: TestClient) -> None:
         target_email = _unique_email("citizentarget")
-        reg_r = _register(client, email=target_email, role="citizen")
+        reg_r = _register(client, email=target_email, role="citizen", auto_verify=True)
         target_id = reg_r.json()["user"]["id"]
         citizen_token = self._make_token(client, "citizen")
         r = client.get(
@@ -518,7 +796,7 @@ class TestRoleAuthorization:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Security helpers (pure unit tests — no DB, no HTTP)
+# 10. Security helpers (pure unit tests)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSecurityHelpers:
@@ -529,11 +807,9 @@ class TestSecurityHelpers:
         assert h.startswith("$2b$")
 
     def test_verify_password_correct(self) -> None:
-        from app.core.security import verify_password
         assert verify_password("correct", hash_password("correct")) is True
 
     def test_verify_password_wrong(self) -> None:
-        from app.core.security import verify_password
         assert verify_password("wrong", hash_password("correct")) is False
 
     def test_jwt_roundtrip(self) -> None:
@@ -553,3 +829,19 @@ class TestSecurityHelpers:
         )
         with pytest.raises(JWTError):
             decode_access_token(token)
+
+    def test_hash_token_sha256_properties(self) -> None:
+        import hashlib
+        plain = "secure-random-test-token-12345"
+        digest = hash_token(plain)
+        assert len(digest) == 64
+        assert hash_token(plain) == digest
+        assert digest == hashlib.sha256(plain.encode("utf-8")).hexdigest()
+        assert hash_token("token-a") != hash_token("token-b")
+
+    def test_generate_token_randomness(self) -> None:
+        t1 = generate_token(48)
+        t2 = generate_token(48)
+        assert len(t1) >= 48
+        assert len(t2) >= 48
+        assert t1 != t2

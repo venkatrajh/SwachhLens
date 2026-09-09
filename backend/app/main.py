@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Code before `yield` runs on startup; code after runs on shutdown.
     """
     settings = get_settings()
+    if settings.environment == "production":
+        if not settings.jwt_secret_key or settings.jwt_secret_key.startswith("CHANGE-ME"):
+            raise RuntimeError(
+                "CRITICAL SECURITY ERROR: jwt_secret_key must be configured with a secure random secret in production!"
+            )
     logger.info(
         "Starting %s v%s [env=%s]",
         settings.app_name,
@@ -51,6 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     yield
     logger.info("Shutting down %s", settings.app_name)
+
 
 
 def create_app() -> FastAPI:

@@ -78,15 +78,24 @@ class BrevoEmailService:
     def send_verification_email(
         self, *, to_email: str, to_name: str, token: str
     ) -> None:
-        """Send an email-verification link to a newly registered user."""
+        """Send an email-verification code/link to a newly registered user."""
         settings = self._settings
-        link = f"{settings.frontend_base_url}/verify-email?token={token}"
+        link = f"{settings.frontend_base_url}/verify-email?token={token}&email={to_email}"
         html = f"""
-        <h2>Welcome to SwachhLens, {to_name}!</h2>
-        <p>Please verify your email address by clicking the link below:</p>
-        <p><a href="{link}">Verify Email Address</a></p>
-        <p>This link expires in {settings.email_verification_expire_hours} hours.</p>
-        <p>If you did not create this account, you can safely ignore this email.</p>
+        <div style="font-family: sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; rounded: 12px;">
+            <h2 style="color: #0f5132;">Welcome to SwachhLens, {to_name}!</h2>
+            <p>Please verify your email address to activate your account.</p>
+            <p>Your 6-digit verification code is:</p>
+            <div style="margin: 20px 0; text-align: center;">
+                <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #168a5b; background: #eaf6ef; padding: 12px 28px; border-radius: 8px; border: 1px solid #c2e7d3;">{token}</span>
+            </div>
+            <p>Or verify directly by clicking the button below:</p>
+            <div style="margin: 16px 0; text-align: center;">
+                <a href="{link}" style="background-color: #168a5b; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Verify Email</a>
+            </div>
+            <p style="font-size: 13px; color: #64748b;">This verification code expires in {settings.otp_expire_minutes} minutes.</p>
+            <p style="font-size: 13px; color: #64748b;">If you did not create this account, you can safely ignore this email.</p>
+        </div>
         """
         self._send(
             to_email=to_email,

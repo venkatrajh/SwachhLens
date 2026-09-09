@@ -67,11 +67,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
-    # ── Email verification (Phase 3) ─────────────────────────────────────────
+    # ── Email verification / OTP (Phase 1B) ──────────────────────────────────
     email_verification_expire_hours: int = 24
+    otp_expire_minutes: int = 15
+    otp_resend_cooldown_seconds: int = 60
 
     # ── Password reset (Phase 3) ─────────────────────────────────────────────
     password_reset_expire_minutes: int = 30
+
 
     # ── Brevo (Phase 3) ──────────────────────────────────────────────────────
     brevo_api_key: str = ""

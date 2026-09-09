@@ -6,6 +6,8 @@ import { AppProvider } from './context/AppContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Login } from './pages/Login';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Complaints } from './pages/Complaints';
 import { ComplaintDetails } from './pages/ComplaintDetails';
@@ -29,9 +31,11 @@ export const App = () => {
         <AppProvider>
           <BrowserRouter>
             <Routes>
-              {/* Public Routes: / and /login both show the existing Login page when logged out */}
+              {/* Public Routes */}
               <Route path="/" element={<AuthEntranceRoute />} />
               <Route path="/login" element={<AuthEntranceRoute />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Protected Routes (Require Valid Authentication Session) */}
               <Route element={<ProtectedRoute />}>
