@@ -89,6 +89,23 @@ class Settings(BaseSettings):
     groq_model: str = "qwen/qwen3.6-27b"
     groq_timeout: int = 30
 
+    # ── Storage & Evidence (Phase 3) ─────────────────────────────────────────
+    storage_backend: Literal["local", "supabase"] = "local"
+    storage_local_dir: str = "media"
+    storage_max_file_size_mb: int = 5
+    storage_allowed_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
+    supabase_url: str = ""
+    supabase_key: str = ""
+    supabase_storage_bucket: str = "swachhlens-evidence"
+    storage_public_base_url: str | None = None
+
+    @field_validator("storage_allowed_types", mode="before")
+    @classmethod
+    def _parse_storage_allowed_types(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            return [t.strip().lower() for t in v.split(",") if t.strip()]
+        return v
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

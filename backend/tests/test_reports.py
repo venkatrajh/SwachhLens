@@ -82,7 +82,8 @@ def mock_email() -> MagicMock:
 def override_dependencies(mock_email: MagicMock):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_email_service] = lambda: mock_email
-    yield
+    with patch("app.services.report.analyze_report_with_groq", return_value=None):
+        yield
     app.dependency_overrides.clear()
 
 
@@ -219,11 +220,10 @@ class TestReportCreation:
 
     @patch("app.services.report.analyze_report_with_groq")
     def test_create_report_multipart_form_data(self, mock_groq: MagicMock, client: TestClient) -> None:
-        """Tests that Kavin's frontend multipart/form-data request is accepted."""
+        """Tests that Kavin's frontend multipart/form-data request is accepted and stored."""
         mock_groq.return_value = None  # graceful fallback
         _, token = _create_user_directly(role="citizen")
         
-        # Simulating Kavin's exact request shape
         data = {
             "image_url": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
             "latitude": "12.9716",
@@ -234,7 +234,7 @@ class TestReportCreation:
         
         r = client.post(
             "/api/v1/reports",
-            data=data,  # using data= sends it as application/x-www-form-urlencoded or multipart/form-data if files are present. Since no files, it sends urlencoded, which our dependency also supports. Wait, to force multipart, we can pass a dummy file or set headers. Let's pass a dummy file to force multipart.
+            data=data,
             files={"dummy": ("dummy.txt", b"")}, # Force multipart/form-data
             headers=_auth(token),
         )
@@ -243,15 +243,18 @@ class TestReportCreation:
         assert body["description"] == "Garbage dump near park"
         assert body["latitude"] == 12.9716
         assert body["longitude"] == 77.5946
-        assert body["image_url"] == "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+        assert body["image_url"].startswith("/media/reports/")
 
     @patch("app.services.report.analyze_report_with_groq")
     def test_create_report_binary_upload_file(self, mock_groq: MagicMock, client: TestClient) -> None:
-        """Tests that uploading an actual binary file under 'image' converts to base64 data URI."""
+        """Tests that uploading an actual binary file under 'image' stores in media."""
         mock_groq.return_value = None
         _, token = _create_user_directly(role="citizen")
 
-        raw_bytes = b"fake_jpeg_binary_content"
+        raw_bytes = bytes([
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x60,
+            0x00, 0x60, 0x00, 0x00, 0xFF, 0xD9
+        ])
         data = {
             "latitude": "12.9716",
             "longitude": "77.5946",
@@ -269,16 +272,19 @@ class TestReportCreation:
         assert r.status_code == 201
         body = r.json()
         assert body["description"] == "Binary uploaded waste photo"
-        assert body["image_url"].startswith("data:image/jpeg;base64,")
+        assert body["image_url"].startswith("/media/reports/")
 
     @patch("app.services.report.analyze_report_with_groq")
     def test_create_report_large_base64_image(self, mock_groq: MagicMock, client: TestClient) -> None:
-        """Tests that a realistic long base64 image string is accepted."""
+        """Tests that a realistic large base64 image string is accepted and stored."""
         mock_groq.return_value = None
         _, token = _create_user_directly(role="citizen")
         
-        # 500KB base64 string (much larger than the previous 2048 char limit)
-        large_b64 = "data:image/jpeg;base64," + ("A" * 500000)
+        import base64
+        valid_jpeg_header = bytes([
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x60
+        ]) + (b"\x00" * 100000) + b"\xFF\xD9"
+        large_b64 = "data:image/jpeg;base64," + base64.b64encode(valid_jpeg_header).decode("utf-8")
         payload = _create_report_payload()
         payload["image_url"] = large_b64
         
@@ -288,7 +294,7 @@ class TestReportCreation:
             headers=_auth(token),
         )
         assert r.status_code == 201
-        assert len(r.json()["image_url"]) > 500000
+        assert r.json()["image_url"].startswith("/media/reports/")
 
 
     @patch("app.services.report.analyze_report_with_groq")

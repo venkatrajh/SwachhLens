@@ -88,6 +88,14 @@ def create_app() -> FastAPI:
     # ── Routers ──────────────────────────────────────────────────────────────
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
+    # ── Media Static Files (Phase 3) ─────────────────────────────────────────
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+
+    media_path = Path(settings.storage_local_dir)
+    media_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=str(media_path)), name="media")
+
     return app
 
 

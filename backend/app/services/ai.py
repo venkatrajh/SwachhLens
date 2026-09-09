@@ -99,10 +99,31 @@ async def analyze_report_with_groq(description: str | None, image_url: str | Non
     user_content.append({"type": "text", "text": text_prompt})
 
     if image_url:
+        groq_image_url = image_url
+        if image_url.startswith("/media/") or image_url.startswith("media/"):
+            import base64
+            from pathlib import Path
+            clean_rel = image_url.lstrip("/")
+            if clean_rel.startswith("media/"):
+                clean_rel = clean_rel[len("media/"):]
+            local_file = Path(settings.storage_local_dir) / clean_rel
+            if local_file.is_file():
+                try:
+                    f_bytes = local_file.read_bytes()
+                    ct = "image/jpeg"
+                    if local_file.suffix.lower() == ".png":
+                        ct = "image/png"
+                    elif local_file.suffix.lower() == ".webp":
+                        ct = "image/webp"
+                    b64 = base64.b64encode(f_bytes).decode("utf-8")
+                    groq_image_url = f"data:{ct};base64,{b64}"
+                except Exception as exc:
+                    logger.warning("Failed to read local media file for AI analysis: %s", exc)
+
         user_content.append({
             "type": "image_url",
             "image_url": {
-                "url": image_url,
+                "url": groq_image_url,
                 "detail": "high"
             }
         })

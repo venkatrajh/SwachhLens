@@ -42,6 +42,7 @@ from app.schemas.report import (
 )
 from app.services import report as report_service
 from app.services import notification as notification_service
+from app.services import storage as storage_service
 from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
 from app.services.decision_engine import generate_recommendations
@@ -87,42 +88,111 @@ async def _notify_users(
 
 
 async def get_report_create_payload(request: Request) -> ReportCreateRequest:
-    """Dynamically parses either JSON or multipart/form-data for report creation."""
+    """Dynamically parses either JSON or multipart/form-data for report creation and validates/stores evidence."""
     content_type = request.headers.get("content-type", "")
+    data: dict[str, Any] = {}
+    preliminary_id = uuid.uuid4()
+
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         form = await request.form()
-        data = {}
         for key, value in form.items():
             if key in ("latitude", "longitude"):
                 try:
                     data[key] = float(value)
                 except ValueError:
                     pass
-            elif key == "image":
-                if isinstance(value, str):
-                    data["image_url"] = value
-                elif hasattr(value, "read"):
+            elif key in ("image", "image_url"):
+                if hasattr(value, "read"):
                     contents = await value.read()
-                    ct = getattr(value, "content_type", "image/jpeg") or "image/jpeg"
-                    b64_str = base64.b64encode(contents).decode("utf-8")
-                    data["image_url"] = f"data:{ct};base64,{b64_str}"
-                else:
-                    data["image_url"] = str(value)
+                    if contents:
+                        try:
+                            stored_url = await storage_service.store_evidence(
+                                contents, preliminary_id, evidence_type="before"
+                            )
+                            data["image_url"] = stored_url
+                        except ValueError as exc:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Image validation failed: {exc}",
+                            )
+                        except Exception as exc:
+                            logger.exception("Storage service failure during upload: %s", exc)
+                            raise HTTPException(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail="Failed to store uploaded image evidence.",
+                            )
+                elif isinstance(value, str) and value.strip():
+                    val_str = value.strip()
+                    if val_str.startswith("data:image/") or (
+                        not val_str.startswith("http://")
+                        and not val_str.startswith("https://")
+                        and not val_str.startswith("/media/")
+                    ):
+                        try:
+                            img_bytes, _ = storage_service.decode_base64_image(val_str)
+                            stored_url = await storage_service.store_evidence(
+                                img_bytes, preliminary_id, evidence_type="before"
+                            )
+                            data["image_url"] = stored_url
+                        except ValueError as exc:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Image validation failed: {exc}",
+                            )
+                        except Exception as exc:
+                            logger.exception("Storage service failure during base64 upload: %s", exc)
+                            raise HTTPException(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail="Failed to process image evidence.",
+                            )
+                    else:
+                        data["image_url"] = val_str
             elif key == "video":
                 if isinstance(value, str):
                     data["video_url"] = value
             else:
                 data[key] = value
-        try:
-            return ReportCreateRequest(**data)
-        except ValidationError as exc:
-            raise RequestValidationError(exc.errors())
     else:
         try:
             json_data = await request.json()
-            return ReportCreateRequest(**json_data)
-        except ValidationError as exc:
-            raise RequestValidationError(exc.errors())
+        except Exception:
+            raise RequestValidationError(
+                [{"loc": ["body"], "msg": "Invalid JSON", "type": "value_error"}]
+            )
+
+        data = dict(json_data)
+        raw_img = data.get("image_url") or data.get("image")
+        if raw_img and isinstance(raw_img, str) and raw_img.strip():
+            val_str = raw_img.strip()
+            if val_str.startswith("data:image/") or (
+                not val_str.startswith("http://")
+                and not val_str.startswith("https://")
+                and not val_str.startswith("/media/")
+            ):
+                try:
+                    img_bytes, _ = storage_service.decode_base64_image(val_str)
+                    stored_url = await storage_service.store_evidence(
+                        img_bytes, preliminary_id, evidence_type="before"
+                    )
+                    data["image_url"] = stored_url
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Image validation failed: {exc}",
+                    )
+                except Exception as exc:
+                    logger.exception("Storage service failure during json upload: %s", exc)
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Failed to process image evidence.",
+                    )
+            else:
+                data["image_url"] = val_str
+
+    try:
+        return ReportCreateRequest(**data)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors())
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -143,9 +213,15 @@ async def create_report(
     payload: ReportCreateRequest = Depends(get_report_create_payload),
 ) -> ReportResponse:
     """Any authenticated active user can create a waste report."""
-    report = await report_service.create_report(db, current_user.id, payload)
-    await db.commit()
-    await db.refresh(report)
+    try:
+        report = await report_service.create_report(db, current_user.id, payload)
+        await db.commit()
+        await db.refresh(report)
+    except Exception as exc:
+        # Attempt orphan cleanup if image was uploaded to storage
+        if payload.image_url and not payload.image_url.startswith("http"):
+            await storage_service.delete_evidence(payload.image_url)
+        raise exc
     
     # Run analysis pipeline synchronously with exception shielding (P0: report must survive AI failure)
     try:
@@ -371,6 +447,26 @@ async def update_report(
                 detail="Only officers and commissioners can change report priority.",
             )
 
+    # Process image fields if base64 provided
+    for field_name, ev_type in [("image_url", "before"), ("before_image_url", "before"), ("after_image_url", "after")]:
+        val = getattr(payload, field_name, None)
+        if val and (val.startswith("data:") or len(val) > 500) and not val.startswith("/media/"):
+            try:
+                img_bytes, _ = storage_service.decode_base64_image(val)
+                stored_url = await storage_service.store_evidence(img_bytes, report_id, evidence_type=ev_type)
+                setattr(payload, field_name, stored_url)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Image validation failed: {exc}",
+                )
+            except Exception as exc:
+                logger.exception("Storage failure during report update: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to process image evidence.",
+                )
+
     report = await report_service.update_report(db, report, payload)
     return ReportResponse.model_validate(report)
 
@@ -522,10 +618,29 @@ async def resolve_report(
             detail="Report not found.",
         )
 
+    after_image_url = payload.after_image_url.strip()
+    if after_image_url.startswith("data:image/"):
+        try:
+            img_bytes, _ = storage_service.decode_base64_image(after_image_url)
+            after_image_url = await storage_service.store_evidence(
+                img_bytes, str(report_id), evidence_type="after"
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"After-image validation failed: {exc}",
+            )
+        except Exception as exc:
+            logger.exception("Storage service failure during after-image upload: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to store after-image evidence.",
+            )
+
     try:
         history = await report_service.resolve_report(
             db, report,
-            after_image_url=payload.after_image_url,
+            after_image_url=after_image_url,
             resolution_notes=payload.resolution_notes,
         )
     except ValueError as exc:
