@@ -1,5 +1,5 @@
 // municipal-dashboard/src/services/reportsAdapter.js
-import { formatReportId, getCleanupImage, formatLocation } from '../utils/reportUtils';
+import { formatReportId, formatLocation } from '../utils/reportUtils';
 
 /**
  * Formats a date string into "YYYY-MM-DD hh:mm A" format
@@ -86,8 +86,7 @@ const synthesizeTimeline = (report) => {
 export const adaptReport = (backendReport) => {
   const displayId = backendReport.display_id || formatReportId(backendReport.id, backendReport.created_at || backendReport.reported_at);
   const locationText = formatLocation(backendReport.address_label, backendReport.latitude, backendReport.longitude);
-  const isResolved = ['completed', 'verified'].includes(backendReport.status);
-  const afterImg = backendReport.after_image_url || (isResolved ? getCleanupImage(backendReport.waste_type, backendReport.id) : null);
+  const afterImg = backendReport.after_image_url || null;
 
   return {
     id: backendReport.id,

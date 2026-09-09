@@ -64,6 +64,39 @@ export const ComplaintDetails = () => {
 
   const [assignmentError, setAssignmentError] = useState(null);
 
+  // Modal states for Resolution
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [resolveImageFile, setResolveImageFile] = useState(null);
+  const [resolveImagePreview, setResolveImagePreview] = useState(null);
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [resolveError, setResolveError] = useState(null);
+
+  const handleResolveReport = async () => {
+    if (!resolveImageFile) {
+      setResolveError("Please select an evidence image.");
+      return;
+    }
+    try {
+      setResolveError(null);
+      
+      // Convert File to base64 data URI
+      const base64Url = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(resolveImageFile);
+      });
+
+      await resolveReport(complaint.id, base64Url, resolveNotes);
+      setIsResolveModalOpen(false);
+      setResolveImageFile(null);
+      setResolveImagePreview(null);
+      setResolveNotes('');
+    } catch (error) {
+      setResolveError(error.response?.data?.detail || "Failed to submit evidence. Please try again.");
+    }
+  };
+
   const handleAssignTeam = async () => {
     if (selectedTeam) {
       try {
@@ -227,7 +260,7 @@ export const ComplaintDetails = () => {
                 src={complaint.afterImage}
                 alt={`Clearance Evidence for ${complaint.displayId || complaint.id}`}
                 height="280px"
-                label="AFTER — Crew Clearance Photo (MVP Visualization)"
+                label="AFTER — Crew Clearance Photo"
                 caption={`Cleared Site Verification • ${complaint.location}`}
               />
             </Card>
@@ -447,10 +480,10 @@ export const ComplaintDetails = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => updateStatus(complaint.id, 'completed', 'Field cleanup completed')}
+                      onClick={() => setIsResolveModalOpen(true)}
                       icon={Check}
                     >
-                      Mark Cleanup Completed
+                      Upload Cleanup Evidence
                     </Button>
                   )}
                   {complaint.rawStatus === 'completed' && (
@@ -552,6 +585,60 @@ export const ComplaintDetails = () => {
             onChange={(e) => setSelectedVehicle(e.target.value)}
             options={(vehicles || []).map(v => ({ value: v.id, label: `${v.type} (${v.plate_number})` }))}
           />
+        </div>
+      </Modal>
+
+      {/* RESOLVE CLEANUP MODAL */}
+      <Modal
+        isOpen={isResolveModalOpen}
+        onClose={() => setIsResolveModalOpen(false)}
+        title="Upload Cleanup Evidence"
+        subtitle="Submit photographic proof of site clearance"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setIsResolveModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleResolveReport}>
+              Submit Evidence
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {resolveError && (
+            <div style={{ padding: '12px', backgroundColor: 'var(--status-critical-bg)', color: 'var(--status-critical-text)', borderRadius: 'var(--radius-md)', fontSize: '13px', fontWeight: 600 }}>
+              {resolveError}
+            </div>
+          )}
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', display: 'block' }}>Cleanup Photo (Required)</label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  setResolveImageFile(file);
+                  setResolveImagePreview(URL.createObjectURL(file));
+                }
+              }}
+              style={{ display: 'block', width: '100%', padding: '8px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-primary)', color: 'var(--text-primary)' }}
+            />
+            {resolveImagePreview && (
+              <img src={resolveImagePreview} alt="Preview" style={{ marginTop: '12px', width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }} />
+            )}
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', display: 'block' }}>Resolution Notes (Optional)</label>
+            <textarea
+              value={resolveNotes}
+              onChange={(e) => setResolveNotes(e.target.value)}
+              placeholder="Any details about the cleanup..."
+              rows={3}
+              style={{ width: '100%', padding: '12px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-primary)', color: 'var(--text-primary)', resize: 'vertical' }}
+            />
+          </div>
         </div>
       </Modal>
     </PageContainer>

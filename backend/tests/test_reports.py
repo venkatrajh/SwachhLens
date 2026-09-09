@@ -558,7 +558,7 @@ class TestStatusWorkflow:
         body = _create_report_via_api(client, citizen_tok)
         rid = body["id"]
 
-        for new_status in ["analyzing", "assigned", "in_progress", "completed", "verified"]:
+        for new_status in ["analyzing", "assigned", "in_progress"]:
             r = client.post(
                 f"/api/v1/reports/{rid}/status",
                 json={"new_status": new_status},
@@ -566,6 +566,22 @@ class TestStatusWorkflow:
             )
             assert r.status_code == 200, f"Failed {new_status}: {r.json()}"
             assert r.json()["status"] == new_status
+
+        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        r = client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            data={"resolution_notes": "All clean"},
+            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            headers=_auth(officer_tok),
+        )
+        assert r.status_code == 200, f"Failed resolve: {r.json()}"
+        
+        r = client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "verified"},
+            headers=_auth(officer_tok),
+        )
+        assert r.status_code == 200, f"Failed verified: {r.json()}"
 
         # Check final state
         report = client.get(f"/api/v1/reports/{rid}", headers=_auth(officer_tok))
@@ -591,12 +607,24 @@ class TestStatusWorkflow:
         body = _create_report_via_api(client, citizen_tok)
         rid = body["id"]
         # Walk to verified
-        for s in ["analyzing", "assigned", "in_progress", "completed", "verified"]:
+        for s in ["analyzing", "assigned", "in_progress"]:
             client.post(
                 f"/api/v1/reports/{rid}/status",
                 json={"new_status": s},
                 headers=_auth(officer_tok),
             )
+        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            data={"resolution_notes": "Cleaned"},
+            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            headers=_auth(officer_tok),
+        )
+        client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "verified"},
+            headers=_auth(officer_tok),
+        )
         # Try to transition from verified
         r = client.post(
             f"/api/v1/reports/{rid}/status",
@@ -711,17 +739,48 @@ class TestStatusWorkflow:
         )
         assert r.status_code == 422
 
-    def test_verified_sets_verified_at(self, client: TestClient) -> None:
+    def test_completion_without_evidence_fails(self, client: TestClient) -> None:
         _, citizen_tok = _create_user_directly(role="citizen")
         _, officer_tok = _create_user_directly(role="officer")
         body = _create_report_via_api(client, citizen_tok)
         rid = body["id"]
-        for s in ["analyzing", "assigned", "in_progress", "completed", "verified"]:
+        for s in ["analyzing", "assigned", "in_progress"]:
             client.post(
                 f"/api/v1/reports/{rid}/status",
                 json={"new_status": s},
                 headers=_auth(officer_tok),
             )
+        r = client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "completed"},
+            headers=_auth(officer_tok),
+        )
+        assert r.status_code == 400
+        assert "evidence" in r.json()["detail"].lower()
+
+    def test_verified_sets_verified_at(self, client: TestClient) -> None:
+        _, citizen_tok = _create_user_directly(role="citizen")
+        _, officer_tok = _create_user_directly(role="officer")
+        body = _create_report_via_api(client, citizen_tok)
+        rid = body["id"]
+        for s in ["analyzing", "assigned", "in_progress"]:
+            client.post(
+                f"/api/v1/reports/{rid}/status",
+                json={"new_status": s},
+                headers=_auth(officer_tok),
+            )
+        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            data={"resolution_notes": "Cleaned"},
+            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            headers=_auth(officer_tok),
+        )
+        client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "verified"},
+            headers=_auth(officer_tok),
+        )
         report = client.get(f"/api/v1/reports/{rid}", headers=_auth(officer_tok))
         assert report.json()["verified_at"] is not None
 

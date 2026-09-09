@@ -173,7 +173,7 @@ export const Verification = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--status-completed)' }}>
-                      AFTER — Crew Clearance Photo (MVP Visualization)
+                      AFTER — Crew Clearance Photo
                     </span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Post-Remediation</span>
                   </div>
@@ -181,7 +181,7 @@ export const Verification = () => {
                     src={complaint.afterImage}
                     alt={`After cleanup of ${complaint.displayId || complaint.id}`}
                     height="210px"
-                    label="Crew Clearance Capture (MVP Visualization)"
+                    label="Crew Clearance Capture"
                     caption={`Cleared by ${complaint.assignedTeam || complaint.recommendedTeam}`}
                   />
                 </div>
@@ -260,6 +260,8 @@ export const Verification = () => {
                       variant="primary"
                       size="md"
                       onClick={() => verifyCleanup(complaint.id)}
+                      disabled={!complaint.afterImage}
+                      title={!complaint.afterImage ? "Genuine evidence required for verification" : ""}
                       icon={ShieldCheck}
                     >
                       ✓ VERIFY CLEANUP

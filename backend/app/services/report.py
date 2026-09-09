@@ -25,7 +25,6 @@ from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
 from app.services.decision_engine import generate_recommendations
 from app.services.geocoding import reverse_geocode_coordinates
-from app.services.cleanup_images import get_cleanup_image_for_report
 
 logger = logging.getLogger(__name__)
 
@@ -281,12 +280,12 @@ async def transition_status(
     if label is None:
         label = f"Status changed from {current} to {new_status}"
 
+    if new_status == "completed" and not report.after_image_url:
+        raise ValueError("Genuine cleanup evidence is required to complete a report.")
+
     # Update report
     report.status = new_status
     report.progress = STATUS_PROGRESS.get(new_status, report.progress)
-
-    if new_status in ("completed", "verified") and not report.after_image_url:
-        report.after_image_url = get_cleanup_image_for_report(report.waste_type, str(report.id))
 
     if new_status == "verified":
         report.verified_at = _now_utc()

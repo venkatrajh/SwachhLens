@@ -13,7 +13,7 @@ import { LocationCard } from '../components/LocationCard';
 import { apiService } from '../services/api';
 import type { Report } from '../types/report';
 import { Clock, ChevronLeft, AlertTriangle, ExternalLink } from 'lucide-react';
-import { formatReportId, getCleanupImage } from '../utils/reportUtils';
+import { formatReportId } from '../utils/reportUtils';
 
 export const ReportDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -175,7 +175,7 @@ export const ReportDetails: React.FC = () => {
         {isResolved && (
           <VerificationCard
             beforeImage={report.before_image_url || report.image_url}
-            afterImage={report.after_image_url || getCleanupImage(report.waste_type, report.id)}
+            afterImage={report.after_image_url || undefined}
             verifiedAt={report.verified_at}
           />
         )}
