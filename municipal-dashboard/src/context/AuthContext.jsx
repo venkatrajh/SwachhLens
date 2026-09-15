@@ -48,21 +48,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Google Sign-In
-   */
-  const loginWithGoogle = async () => {
-    setAuthError(null);
-    try {
-      const { user: authenticatedUser } = await authService.loginWithGoogle();
-      setUser(authenticatedUser);
-      return authenticatedUser;
-    } catch (err) {
-      setAuthError(err.message);
-      throw err;
-    }
-  };
-
-  /**
    * Logout
    */
   const logout = async () => {
@@ -85,7 +70,6 @@ export const AuthProvider = ({ children }) => {
         authError,
         setAuthError,
         login,
-        loginWithGoogle,
         logout
       }}
     >

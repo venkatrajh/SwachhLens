@@ -130,8 +130,7 @@ export const Dashboard = () => {
           value={kpis.totalReports}
           subtitle="Cumulative city intake"
           icon={FileText}
-          trend="+12% today"
-          trendType="neutral"
+          accentColor="var(--accent-primary)"
         />
         <KPICard
           title="Pending"

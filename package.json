@@ -1,0 +1,8 @@
+{
+  "name": "swachhlens",
+  "version": "2.0.0",
+  "private": true,
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

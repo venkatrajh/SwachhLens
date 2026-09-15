@@ -32,5 +32,3 @@ pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-mock==3.14.0             # mocking Brevo calls in tests
 aiosqlite==0.20.0               # in-memory SQLite for auth tests (no real DB needed)
-
-

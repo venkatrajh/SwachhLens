@@ -77,13 +77,19 @@ class User(Base):
         Boolean, nullable=False, server_default="false"
     )
 
-    # ── Email verification token (hashed, single-use, expiring) ──────────────
+    # ── Email verification token (SHA-256 digest, single-use, expiring) ──────
     verification_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     verification_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    verification_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    verification_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    # ── Password reset token (hashed, single-use, expiring) ──────────────────
+    # ── Password reset token (SHA-256 digest, single-use, expiring) ──────────
     reset_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     reset_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

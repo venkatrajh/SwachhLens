@@ -6,7 +6,8 @@ import {
   Truck,
   Users,
   ShieldCheck,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -14,12 +15,19 @@ import { Card } from '../components/ui/Card';
 import { GlassImage } from '../components/ui/GlassImage';
 import { StatusBadge, Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
+import { Select } from '../components/ui/Select';
 
 export const Verification = () => {
-  const { complaints, verifyCleanup, teams, vehicles } = useApp();
+  const { complaints, verifyCleanup, rejectCleanup, teams, vehicles } = useApp();
   const navigate = useNavigate();
 
   const [filterMode, setFilterMode] = useState('ALL'); // ALL | PENDING_AUDIT | VERIFIED
+  const [rejectModalComplaint, setRejectModalComplaint] = useState(null);
+  const [rejectReason, setRejectReason] = useState('Insufficient site clearance — waste remnants remain on site');
+  const [customReason, setCustomReason] = useState('');
+  const [rejectError, setRejectError] = useState(null);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const filteredItems = complaints.filter(item => {
     if (filterMode === 'PENDING_AUDIT') return !item.verified;
@@ -29,6 +37,22 @@ export const Verification = () => {
 
   const verifiedCount = complaints.filter(c => c.verified).length;
   const pendingCount = complaints.filter(c => !c.verified).length;
+
+  const handleConfirmReject = async () => {
+    if (!rejectModalComplaint) return;
+    try {
+      setIsRejecting(true);
+      setRejectError(null);
+      const reasonToUse = rejectReason === 'OTHER' ? (customReason.trim() || 'Evidence rejected by municipal officer') : rejectReason;
+      await rejectCleanup(rejectModalComplaint.id, reasonToUse);
+      setRejectModalComplaint(null);
+      setCustomReason('');
+    } catch (err) {
+      setRejectError(err.response?.data?.detail || "Failed to reject evidence. Please try again.");
+    } finally {
+      setIsRejecting(false);
+    }
+  };
 
   return (
     <PageContainer
@@ -163,7 +187,8 @@ export const Verification = () => {
                   <GlassImage
                     src={complaint.beforeImage}
                     alt={`Before cleanup of ${complaint.displayId || complaint.id}`}
-                    height="210px"
+                    height="280px"
+                    objectFit="contain"
                     label="Citizen Report Photo"
                     caption={complaint.latitude != null && complaint.longitude != null ? `LAT: ${Number(complaint.latitude).toFixed(5)}° N • ${complaint.location}` : complaint.location}
                   />
@@ -173,15 +198,16 @@ export const Verification = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--status-completed)' }}>
-                      AFTER — Crew Clearance Photo (MVP Visualization)
+                      AFTER — Crew Clearance Photo
                     </span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Post-Remediation</span>
                   </div>
                   <GlassImage
                     src={complaint.afterImage}
                     alt={`After cleanup of ${complaint.displayId || complaint.id}`}
-                    height="210px"
-                    label="Crew Clearance Capture (MVP Visualization)"
+                    height="280px"
+                    objectFit="contain"
+                    label="Crew Clearance Capture"
                     caption={`Cleared by ${complaint.assignedTeam || complaint.recommendedTeam}`}
                   />
                 </div>
@@ -256,14 +282,29 @@ export const Verification = () => {
                       ✓ Cleanup Verified
                     </Button>
                   ) : (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      onClick={() => verifyCleanup(complaint.id)}
-                      icon={ShieldCheck}
-                    >
-                      ✓ VERIFY CLEANUP
-                    </Button>
+                    <>
+                      <Button
+                        variant="danger"
+                        size="md"
+                        onClick={() => {
+                          setRejectError(null);
+                          setRejectModalComplaint(complaint);
+                        }}
+                        icon={RotateCcw}
+                      >
+                        Reject / Re-Clean
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={() => verifyCleanup(complaint.id)}
+                        disabled={!complaint.afterImage}
+                        title={!complaint.afterImage ? "Genuine evidence required for verification" : ""}
+                        icon={ShieldCheck}
+                      >
+                        ✓ VERIFY CLEANUP
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -271,6 +312,73 @@ export const Verification = () => {
           );
         })}
       </div>
+
+      {/* REJECT EVIDENCE / RE-CLEAN MODAL */}
+      <Modal
+        isOpen={!!rejectModalComplaint}
+        onClose={() => setRejectModalComplaint(null)}
+        title="Reject Cleanup Evidence"
+        subtitle={`Request field re-cleanup for incident ${rejectModalComplaint?.displayId || rejectModalComplaint?.id}`}
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setRejectModalComplaint(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleConfirmReject} disabled={isRejecting}>
+              {isRejecting ? "Processing..." : "Confirm Rejection & Request Re-Clean"}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {rejectError && (
+            <div style={{ padding: '12px', backgroundColor: 'var(--status-critical-bg)', color: 'var(--status-critical-text)', borderRadius: 'var(--radius-md)', fontSize: '13px', fontWeight: 600 }}>
+              {rejectError}
+            </div>
+          )}
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Rejecting this evidence will transition the complaint back to <strong>In Progress</strong>, notify the response team, and require fresh clearance photographic proof before it can be certified.
+          </p>
+
+          <Select
+            label="Rejection Reason"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            options={[
+              { value: "Insufficient site clearance — waste remnants remain on site", label: "Insufficient clearance / waste remnants remain" },
+              { value: "After-photo unclear or does not match geotag location", label: "After-photo unclear or location mismatch" },
+              { value: "Incomplete cleanup — hazardous materials still present", label: "Hazardous or bulky waste left behind" },
+              { value: "OTHER", label: "Other (specify custom reason below)" }
+            ]}
+          />
+
+          {rejectReason === 'OTHER' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Custom Rejection Notes
+              </label>
+              <textarea
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Explain why the cleanup evidence is being rejected..."
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--surface-secondary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </Modal>
     </PageContainer>
   );
 };

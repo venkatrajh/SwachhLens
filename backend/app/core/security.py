@@ -7,7 +7,9 @@ All secrets come from app settings (environment variables).
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -18,7 +20,8 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# ── Password hashing ──────────────────────────────────────────────────────────
+# ── Password hashing (bcrypt) ────────────────────────────────────────────────
+# Passwords use slow, salted bcrypt hashing with work factor ~12.
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -27,9 +30,35 @@ def hash_password(plaintext: str) -> str:
     return _pwd_context.hash(plaintext)
 
 
-def verify_password(plaintext: str, hashed: str) -> bool:
-    """Return True if plaintext matches the bcrypt hash."""
-    return _pwd_context.verify(plaintext, hashed)
+def verify_password(plaintext: str, hashed: str | None) -> bool:
+    """Return True if plaintext matches the bcrypt hash. Safely handles malformed hashes."""
+    if not hashed or not isinstance(hashed, str) or not hashed.startswith("$2"):
+        return False
+    try:
+        return _pwd_context.verify(plaintext, hashed)
+    except Exception as exc:
+        logger.warning("Safely handled invalid password hash verification: %s", exc)
+        return False
+
+
+# ── Verification & Reset Tokens (Deterministic SHA-256) ──────────────────────
+# High-entropy random tokens use deterministic SHA-256 hex digests.
+# This enables fast O(1) indexed database lookups without salt variation.
+# Passwords MUST NOT use this (passwords must continue using hash_password/bcrypt).
+
+def generate_token(nbytes: int = 48) -> str:
+    """Generate a cryptographically secure URL-safe random token string."""
+    return secrets.token_urlsafe(nbytes)
+
+
+def hash_token(plain_token: str) -> str:
+    """
+    Return the deterministic hex-encoded SHA-256 digest of a raw token.
+
+    Used exclusively for high-entropy random verification and reset tokens.
+    """
+    return hashlib.sha256(plain_token.encode("utf-8")).hexdigest()
+
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────

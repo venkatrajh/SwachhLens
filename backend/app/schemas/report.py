@@ -74,10 +74,10 @@ class ReportUpdateRequest(BaseModel):
     address_label: str | None = Field(default=None, max_length=512)
 
     # Media
-    image_url: str | None = Field(default=None, max_length=2048)
-    video_url: str | None = Field(default=None, max_length=2048)
-    before_image_url: str | None = Field(default=None, max_length=2048)
-    after_image_url: str | None = Field(default=None, max_length=2048)
+    image_url: str | None = Field(default=None)
+    video_url: str | None = Field(default=None)
+    before_image_url: str | None = Field(default=None)
+    after_image_url: str | None = Field(default=None)
 
     # Classification
     waste_type: str | None = Field(default=None, max_length=100)
@@ -157,7 +157,7 @@ class ReportAssignRequest(BaseModel):
 class ReportResolveRequest(BaseModel):
     """Payload for POST /api/v1/reports/{id}/resolve."""
 
-    after_image_url: str = Field(..., max_length=2048)
+    after_image_url: str = Field(...)
     resolution_notes: str | None = Field(default=None, max_length=1000)
 
 
@@ -190,6 +190,11 @@ class ReportResponse(BaseModel):
     severity_score: float | None
     priority: str
     confidence: float
+
+    # Local CV Perception Provenance (EXP_02 MobileNetV3-Large)
+    cv_model: str | None = None
+    cv_confidence: float | None = None
+    cv_probabilities: dict[str, float] | None = None
 
     # Flags
     duplicate: bool

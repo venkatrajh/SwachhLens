@@ -23,29 +23,7 @@ export function formatReportId(id, dateStr) {
   return `SL-${year}-${cleanHex || '000000'}`;
 }
 
-/**
- * Return deterministic cleanup image path for a waste category and report ID
- */
-export function getCleanupImage(wasteType, reportId) {
-  const norm = (wasteType || '').toLowerCase();
 
-  if (norm.includes('construct') || norm.includes('debris') || norm.includes('rubble') || norm.includes('c&d')) {
-    return '/images/cleanup/construction_after_01.jpg';
-  }
-  if (norm.includes('organ') || norm.includes('wet') || norm.includes('bio') || norm.includes('food') || norm.includes('vegetable')) {
-    return '/images/cleanup/organic_after_01.jpg';
-  }
-  if (norm.includes('plastic') || norm.includes('bottle') || norm.includes('poly')) {
-    return '/images/cleanup/plastic_after_01.jpg';
-  }
-  if (norm.includes('hazard') || norm.includes('e-waste') || norm.includes('electronic') || norm.includes('chem') || norm.includes('medic') || norm.includes('battery')) {
-    return '/images/cleanup/hazardous_after_01.jpg';
-  }
-  if (norm.includes('house') || norm.includes('domest') || norm.includes('resident')) {
-    return '/images/cleanup/household_after_01.jpg';
-  }
-  return '/images/cleanup/mixed_after_01.jpg';
-}
 
 /**
  * Format location with address fallback to GPS coordinates.

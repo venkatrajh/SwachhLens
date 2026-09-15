@@ -12,15 +12,18 @@ from app.services import fleet
 
 router = APIRouter(tags=["teams"])
 
-@router.get("/", response_model=list[TeamResponse], summary="List all teams")
+@router.get("", response_model=list[TeamResponse], summary="List all teams")
+@router.get("/", response_model=list[TeamResponse], include_in_schema=False)
 async def list_teams(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
     active_only: bool = False,
 ) -> list[TeamResponse]:
-    return await fleet.list_teams(db, active_only=active_only)
+    teams = await fleet.list_teams(db, active_only=active_only)
+    return [TeamResponse.model_validate(t) for t in teams]
 
-@router.post("/", response_model=TeamResponse, summary="Create a team")
+@router.post("", response_model=TeamResponse, summary="Create a team")
+@router.post("/", response_model=TeamResponse, include_in_schema=False)
 async def create_team(
     payload: TeamCreate,
     db: Annotated[AsyncSession, Depends(get_db)],

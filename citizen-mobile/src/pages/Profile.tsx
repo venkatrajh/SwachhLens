@@ -69,6 +69,24 @@ export const Profile: React.FC = () => {
     navigate('/login');
   };
 
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiService.deleteAccount();
+      setShowDeleteModal(false);
+      logout();
+      navigate('/welcome', { replace: true });
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to delete account. Please try again.';
+      setDeleteError(detail);
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col pb-16">
       <TopHeader title={t('profile.title', 'Profile & Settings')} showBack={false} />
@@ -98,7 +116,7 @@ export const Profile: React.FC = () => {
 
           <button
             onClick={() => navigate('/profile/edit')}
-            className="px-3 py-1.5 rounded-xl bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#0F5132] dark:text-[#39B77A] border border-[#168A5B]/30 text-xs font-bold active:scale-95 transition-transform flex-shrink-0"
+            className="px-3 py-1.5 rounded-xl bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#0F5132] dark:text-[#39B77A] border border-[#168A5B]/30 text-xs font-bold active:scale-95 transition-transform flex-shrink-0 cursor-pointer"
           >
             {t('profile.edit', 'View')}
           </button>
@@ -144,7 +162,7 @@ export const Profile: React.FC = () => {
           <div className="bg-white dark:bg-[#14221B] rounded-2xl border border-[#DCE7E1] dark:border-[#294037] shadow-card divide-y divide-[#DCE7E1]/60 dark:divide-[#294037]/60 overflow-hidden">
             <button
               onClick={() => navigate('/profile/edit')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center">
@@ -159,7 +177,7 @@ export const Profile: React.FC = () => {
 
             <button
               onClick={() => navigate('/profile/change-password')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-[#1A2C23] text-[#64736A] dark:text-[#A9BBB1] flex items-center justify-center">
@@ -173,8 +191,11 @@ export const Profile: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setShowDeleteModal(true)}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left text-red-600 dark:text-red-400"
+              onClick={() => {
+                setDeleteError(null);
+                setShowDeleteModal(true);
+              }}
+              className="w-full p-3.5 flex items-center justify-between hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left text-red-600 dark:text-red-400 cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
@@ -199,7 +220,7 @@ export const Profile: React.FC = () => {
             {/* Language */}
             <button
               onClick={openLanguageModal}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center">
@@ -220,7 +241,7 @@ export const Profile: React.FC = () => {
             {/* Appearance (Theme) */}
             <button
               onClick={() => navigate('/settings/appearance')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -247,7 +268,7 @@ export const Profile: React.FC = () => {
             {/* Notifications Shortcut */}
             <button
               onClick={() => navigate('/settings/notifications')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -276,7 +297,7 @@ export const Profile: React.FC = () => {
           <div className="bg-white dark:bg-[#14221B] rounded-2xl border border-[#DCE7E1] dark:border-[#294037] shadow-card divide-y divide-[#DCE7E1]/60 dark:divide-[#294037]/60 overflow-hidden">
             <button
               onClick={() => navigate('/security-privacy')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center">
@@ -291,7 +312,7 @@ export const Profile: React.FC = () => {
 
             <button
               onClick={() => navigate('/privacy-policy')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-[#1A2C23] text-[#64736A] dark:text-[#A9BBB1] flex items-center justify-center">
@@ -303,19 +324,10 @@ export const Profile: React.FC = () => {
               </div>
               <ChevronRight className="w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
             </button>
-          </div>
-        </div>
 
-        {/* 4. LEGAL & ABOUT SECTION (Section 3 & 14) */}
-        <div className="space-y-1.5">
-          <span className="text-xs font-bold text-[#64736A] dark:text-[#A9BBB1] uppercase tracking-wider block px-1">
-            {t('settings.legal', 'Legal & About')}
-          </span>
-
-          <div className="bg-white dark:bg-[#14221B] rounded-2xl border border-[#DCE7E1] dark:border-[#294037] shadow-card divide-y divide-[#DCE7E1]/60 dark:divide-[#294037]/60 overflow-hidden">
             <button
               onClick={() => navigate('/terms-of-service')}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-[#1A2C23] text-[#64736A] dark:text-[#A9BBB1] flex items-center justify-center">
@@ -327,20 +339,31 @@ export const Profile: React.FC = () => {
               </div>
               <ChevronRight className="w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
             </button>
+          </div>
+        </div>
 
+        {/* 4. ABOUT & SUPPORT (Section 3 & 14) */}
+        <div className="space-y-1.5">
+          <span className="text-xs font-bold text-[#64736A] dark:text-[#A9BBB1] uppercase tracking-wider block px-1">
+            {t('settings.legal', 'About & Legal')}
+          </span>
+
+          <div className="bg-white dark:bg-[#14221B] rounded-2xl border border-[#DCE7E1] dark:border-[#294037] shadow-card divide-y divide-[#DCE7E1]/60 dark:divide-[#294037]/60 overflow-hidden">
             <button
               onClick={() => setShowAboutModal(true)}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 dark:hover:bg-[#1A2C23] transition-colors text-left cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-[#1A2C23] text-[#64736A] dark:text-[#A9BBB1] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-[#EAF6EF] dark:bg-[#1A2C23] text-[#168A5B] dark:text-[#39B77A] flex items-center justify-center">
                   <Info className="w-4 h-4" />
                 </div>
                 <div>
                   <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] block">
                     {t('profile.about', 'About SwachhLens')}
                   </span>
-                  <span className="text-[11px] text-[#64736A] dark:text-[#A9BBB1]">Version 1.0.0</span>
+                  <span className="text-[11px] text-[#64736A] dark:text-[#A9BBB1]">
+                    Version 2.0 (Build 2026.1)
+                  </span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
@@ -352,7 +375,7 @@ export const Profile: React.FC = () => {
         <div className="pt-2">
           <button
             onClick={handleSignOut}
-            className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#14221B] border border-red-200 dark:border-red-900/60 shadow-card hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-center text-red-600 dark:text-red-400 font-bold text-xs flex items-center justify-center gap-2"
+            className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#14221B] border border-red-200 dark:border-red-900/60 shadow-card hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-center text-red-600 dark:text-red-400 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>{t('profile.signOut', 'Sign Out')}</span>
@@ -378,12 +401,13 @@ export const Profile: React.FC = () => {
             </p>
             <div className="p-3 bg-[#F7FAF8] dark:bg-[#0D1712] rounded-xl text-left text-[11px] text-[#64736A] dark:text-[#A9BBB1] space-y-1 border border-[#DCE7E1] dark:border-[#294037]">
               <div><strong>Role:</strong> Citizen Mobile PWA</div>
+              <div><strong>Version:</strong> 2.0 (Build 2026.1)</div>
               <div><strong>Tagline:</strong> "Report. Understand. Prioritize. Respond. Verify."</div>
               <div><strong>Engine:</strong> AI Civic Decision Support System</div>
             </div>
             <button
               onClick={() => setShowAboutModal(false)}
-              className="w-full py-2.5 rounded-xl bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] text-xs font-bold"
+              className="w-full py-2.5 rounded-xl bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] text-xs font-bold cursor-pointer"
             >
               Close
             </button>
@@ -391,7 +415,7 @@ export const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Destructive Delete Account Modal (Section 6) */}
+      {/* Destructive Delete Account Modal (CHANGE-010) */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
@@ -401,22 +425,43 @@ export const Profile: React.FC = () => {
             <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <div className="text-center space-y-1">
+            <div className="text-center space-y-1.5">
               <h2 className="text-base font-extrabold text-red-600 dark:text-red-400">
-                {t('settings.deleteAccountTitle', 'Delete Account')}
+                {t('settings.deleteAccountTitle', 'Delete Account Permanently')}
               </h2>
               <p className="text-xs text-[#64736A] dark:text-[#A9BBB1] leading-relaxed">
-                Account deletion is not available yet in this version. Please contact support if you need your account removed.
+                {t(
+                  'settings.deleteAccountWarning',
+                  'Deleting your account is permanent. Your profile, active sessions, and credentials will be deactivated immediately.'
+                )}
               </p>
             </div>
 
-            <div className="pt-2">
+            {deleteError && (
+              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 text-xs font-medium text-center">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="pt-2 space-y-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="w-full py-2.5 rounded-xl bg-[#168A5B] dark:bg-[#39B77A] text-white dark:text-[#0D1712] text-xs font-bold shadow-xs active:scale-95 transition-transform"
+                disabled={isDeleting}
+                onClick={handleDeleteAccount}
+                className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
               >
-                OK
+                {isDeleting ? 'Deleting Account...' : t('settings.confirmDelete', 'Confirm Delete Account')}
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteError(null);
+                }}
+                className="w-full py-2.5 rounded-xl bg-stone-100 dark:bg-[#1A2C23] hover:bg-stone-200 dark:hover:bg-[#253d30] text-[#17211B] dark:text-[#F2F7F4] text-xs font-bold cursor-pointer"
+              >
+                {t('common.cancel', 'Cancel')}
               </button>
             </div>
           </div>

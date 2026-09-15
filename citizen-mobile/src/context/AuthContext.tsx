@@ -5,8 +5,9 @@ import { apiService } from '../services/api';
 
 interface AuthContextType extends AuthState {
   login: (email: string, pass: string) => Promise<boolean>;
-  loginWithGoogle: () => Promise<boolean>;
-  register: (name: string, email: string, pass: string) => Promise<boolean>;
+  loginWithGoogle: (idToken: string) => Promise<boolean>;
+  register: (name: string, email: string, pass: string, ward?: string) => Promise<any>;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 }
 
@@ -25,7 +26,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
 
         if (storedToken) {
-          // Verify token by fetching user profile
           const userProfile = await apiService.getCurrentUser();
           setUser(userProfile);
           setIsAuthenticated(true);
@@ -60,36 +60,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const { access_token } = await apiService.login(email, pass);
       localStorage.setItem(AUTH_TOKEN_KEY, access_token);
-      
+
       const userProfile = await apiService.getCurrentUser();
       setUser(userProfile);
       setIsAuthenticated(true);
       return true;
     } catch (err) {
       console.error('Login failed:', err);
-      return false;
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
-    // Google OAuth is not supported in MVP
-    console.error('Google Auth not yet supported by backend');
-    return false;
-  };
-
-  const register = async (name: string, email: string, pass: string): Promise<boolean> => {
+  const loginWithGoogle = async (idToken: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await apiService.register(name, email, pass);
-      // Auto-login after register
-      return await login(email, pass);
+      const { access_token } = await apiService.googleLogin(idToken);
+      localStorage.setItem(AUTH_TOKEN_KEY, access_token);
+
+      const userProfile = await apiService.getCurrentUser();
+      setUser(userProfile);
+      setIsAuthenticated(true);
+      return true;
     } catch (err) {
-      console.error('Registration failed:', err);
-      return false;
+      console.error('Google login failed:', err);
+      throw err;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const register = async (name: string, email: string, pass: string, ward?: string): Promise<any> => {
+    setIsLoading(true);
+    try {
+      // Create user with is_verified=False; do NOT auto-login
+      const result = await apiService.register(name, email, pass, ward);
+      return result;
+    } catch (err) {
+      console.error('Registration failed:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const userProfile = await apiService.getCurrentUser();
+      setUser(userProfile);
+    } catch (err) {
+      console.error('Failed to refresh user profile:', err);
     }
   };
 
@@ -108,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         loginWithGoogle,
         register,
+        refreshUser,
         logout,
       }}
     >

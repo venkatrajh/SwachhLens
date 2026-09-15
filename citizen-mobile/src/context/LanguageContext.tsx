@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '../i18n';
@@ -18,17 +18,12 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { i18n } = useTranslation();
-  const [currentLanguage, setCurrentLanguage] = useState<string>(i18n.language || 'en');
   const [isLanguageModalOpen, setIsLanguageModalOpen] = useState<boolean>(false);
 
-  useEffect(() => {
-    const code = (i18n.language || 'en').split('-')[0];
-    setCurrentLanguage(code);
-  }, [i18n.language]);
+  const currentLanguage = (i18n.language || 'en').split('-')[0];
 
   const changeLanguage = (code: string) => {
     i18n.changeLanguage(code);
-    setCurrentLanguage(code);
     localStorage.setItem('swachhlens_language', code);
     setIsLanguageModalOpen(false);
   };

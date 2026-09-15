@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { BadgeCheck, Sparkles } from 'lucide-react';
+import { BadgeCheck, Sparkles, ImageOff } from 'lucide-react';
 
 interface VerificationCardProps {
   beforeImage?: string;
@@ -59,16 +59,20 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
           <span className="text-[10px] font-bold text-[#64736A] dark:text-[#A9BBB1] uppercase tracking-wider block">
             {t('reportDetails.before')}
           </span>
-          <div className="w-full aspect-square rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 border border-[#DCE7E1] dark:border-[#294037]">
-            <img
-              src={
-                beforeImage ||
-                'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=400&q=80'
-              }
-              alt="Before Cleanup"
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
+          <div className="w-full aspect-square rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 border border-[#DCE7E1] dark:border-[#294037] flex items-center justify-center">
+            {beforeImage ? (
+              <img
+                src={beforeImage}
+                alt="Before Cleanup"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-2 text-center text-[#64736A] dark:text-[#A9BBB1]">
+                <ImageOff className="w-6 h-6 mb-1 opacity-50" />
+                <span className="text-[9px] font-medium leading-tight">No image</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -76,18 +80,22 @@ export const VerificationCard: React.FC<VerificationCardProps> = ({
         <div className="space-y-1">
           <span className="text-[10px] font-bold text-[#168A5B] dark:text-[#39B77A] uppercase tracking-wider block flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
-            <span>{t('reportDetails.after')} — MVP Visualization</span>
+            <span>{t('reportDetails.after')}</span>
           </span>
-          <div className="w-full aspect-square rounded-xl overflow-hidden bg-emerald-50 dark:bg-[#1A2C23] border-2 border-[#168A5B]/40 dark:border-[#39B77A]/40 shadow-xs">
-            <img
-              src={
-                afterImage ||
-                '/images/cleanup/mixed_after_01.jpg'
-              }
-              alt="After Cleanup — MVP Visualization"
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
+          <div className="w-full aspect-square rounded-xl overflow-hidden bg-emerald-50 dark:bg-[#1A2C23] border-2 border-[#168A5B]/40 dark:border-[#39B77A]/40 shadow-xs flex items-center justify-center">
+            {afterImage ? (
+              <img
+                src={afterImage}
+                alt="After Cleanup"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-2 text-center text-[#168A5B] dark:text-[#39B77A]">
+                <ImageOff className="w-6 h-6 mb-1 opacity-50" />
+                <span className="text-[9px] font-medium leading-tight">Evidence pending</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

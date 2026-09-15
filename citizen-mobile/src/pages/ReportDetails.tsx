@@ -12,8 +12,8 @@ import { VerificationCard } from '../components/VerificationCard';
 import { LocationCard } from '../components/LocationCard';
 import { apiService } from '../services/api';
 import type { Report } from '../types/report';
-import { Clock, ChevronLeft, AlertTriangle } from 'lucide-react';
-import { formatReportId, getCleanupImage } from '../utils/reportUtils';
+import { Clock, ChevronLeft, AlertTriangle, ExternalLink, Camera } from 'lucide-react';
+import { formatReportId, resolveImageUrl } from '../utils/reportUtils';
 
 export const ReportDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +23,7 @@ export const ReportDetails: React.FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -67,32 +68,81 @@ export const ReportDetails: React.FC = () => {
     <div className="relative min-h-screen bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col pb-12">
       <TopHeader
         title={report.display_id || formatReportId(report.id, report.created_at || report.reported_at || report.timestamp)}
-        subtitle={report.waste_type}
+        subtitle={report.waste_type || 'Waste Report'}
         showBack={true}
       />
       <NatureBackground />
 
       <div className="relative z-10 px-4 py-3 space-y-4">
+        {/* Prominent Duplicate Banner */}
+        {report.duplicate && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                {t('result.duplicateTitle', 'Duplicate Report Linked')}
+              </h2>
+            </div>
+            <p className="text-xs text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              {t(
+                'result.duplicateDesc',
+                'This report was identified as a duplicate of an existing incident and linked for municipal tracking.'
+              )}
+            </p>
+            {report.linked_report_id && (
+              <div className="pt-2 flex items-center justify-between border-t border-amber-200/60 dark:border-amber-900/60">
+                <span className="text-xs font-mono font-bold text-amber-900 dark:text-amber-200 truncate max-w-[180px]">
+                  Original: {report.linked_report_id.slice(0, 8)}...
+                </span>
+                <button
+                  onClick={() => navigate(`/reports/${report.linked_report_id}`)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform shadow-xs"
+                >
+                  <span>{t('result.viewExistingReport', 'View Original Issue')}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Main Photo Card */}
-        {report.image_url && (
-          <div className="relative rounded-3xl overflow-hidden bg-black aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+        {report.image_url && !imageError ? (
+          <div className="relative rounded-3xl overflow-hidden bg-black/90 aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card flex items-center justify-center">
             <img
-              src={report.image_url}
-              alt={report.waste_type}
-              className="w-full h-full object-cover"
+              src={resolveImageUrl(report.image_url)}
+              alt={report.waste_type || 'Reported Waste'}
+              onError={() => setImageError(true)}
+              className="w-full h-full object-contain"
             />
-            <div className="absolute top-3 left-3 flex gap-2">
+            <div className="absolute top-3 left-3 flex gap-2 z-10">
               <PriorityBadge priority={report.priority} size="md" />
               <StatusBadge status={report.status} size="md" />
             </div>
             {report.duplicate && (
-              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold flex items-center gap-1">
+              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold flex items-center gap-1 z-10">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>Linked Duplicate</span>
               </div>
             )}
           </div>
-        )}
+        ) : report.image_url && imageError ? (
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#EAF4EF] to-[#D5EADF] dark:from-[#132B20] dark:to-[#0D1C15] aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-[#168A5B]/10 dark:bg-[#39B77A]/20 flex items-center justify-center text-[#168A5B] dark:text-[#39B77A] mb-2">
+              <Camera className="w-6 h-6" />
+            </div>
+            <span className="text-sm font-bold text-[#17211B] dark:text-[#F2F7F4] capitalize">
+              {report.waste_type?.replace(/_/g, ' ') || 'Civic Incident Photo'}
+            </span>
+            <span className="text-xs text-[#64736A] dark:text-[#A9BBB1] mt-1">
+              Visual evidence archived on SwachhLens AI Gateway
+            </span>
+            <div className="absolute top-3 left-3 flex gap-2">
+              <PriorityBadge priority={report.priority} size="md" />
+              <StatusBadge status={report.status} size="md" />
+            </div>
+          </div>
+        ) : null}
 
         {/* Location & Metadata Bar */}
         <div className="space-y-2">
@@ -142,8 +192,8 @@ export const ReportDetails: React.FC = () => {
         {/* Before / After Cleanup Verification Card */}
         {isResolved && (
           <VerificationCard
-            beforeImage={report.before_image_url || report.image_url}
-            afterImage={report.after_image_url || getCleanupImage(report.waste_type, report.id)}
+            beforeImage={resolveImageUrl(report.before_image_url || report.image_url)}
+            afterImage={resolveImageUrl(report.after_image_url) || undefined}
             verifiedAt={report.verified_at}
           />
         )}

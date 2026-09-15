@@ -14,6 +14,7 @@ GET    /reports/{id}/history   Get status history
 
 from __future__ import annotations
 
+import base64
 import logging
 import math
 import uuid
@@ -41,6 +42,7 @@ from app.schemas.report import (
 )
 from app.services import report as report_service
 from app.services import notification as notification_service
+from app.services import storage as storage_service
 from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
 from app.services.decision_engine import generate_recommendations
@@ -86,34 +88,111 @@ async def _notify_users(
 
 
 async def get_report_create_payload(request: Request) -> ReportCreateRequest:
-    """Dynamically parses either JSON or multipart/form-data for report creation."""
+    """Dynamically parses either JSON or multipart/form-data for report creation and validates/stores evidence."""
     content_type = request.headers.get("content-type", "")
+    data: dict[str, Any] = {}
+    preliminary_id = uuid.uuid4()
+
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         form = await request.form()
-        data = {}
         for key, value in form.items():
             if key in ("latitude", "longitude"):
                 try:
                     data[key] = float(value)
                 except ValueError:
                     pass
-            elif key == "image":
+            elif key in ("image", "image_url"):
+                if hasattr(value, "read"):
+                    contents = await value.read()
+                    if contents:
+                        try:
+                            stored_url = await storage_service.store_evidence(
+                                contents, preliminary_id, evidence_type="before"
+                            )
+                            data["image_url"] = stored_url
+                        except ValueError as exc:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Image validation failed: {exc}",
+                            )
+                        except Exception as exc:
+                            logger.exception("Storage service failure during upload: %s", exc)
+                            raise HTTPException(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail="Failed to store uploaded image evidence.",
+                            )
+                elif isinstance(value, str) and value.strip():
+                    val_str = value.strip()
+                    if val_str.startswith("data:image/") or (
+                        not val_str.startswith("http://")
+                        and not val_str.startswith("https://")
+                        and not val_str.startswith("/media/")
+                    ):
+                        try:
+                            img_bytes, _ = storage_service.decode_base64_image(val_str)
+                            stored_url = await storage_service.store_evidence(
+                                img_bytes, preliminary_id, evidence_type="before"
+                            )
+                            data["image_url"] = stored_url
+                        except ValueError as exc:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Image validation failed: {exc}",
+                            )
+                        except Exception as exc:
+                            logger.exception("Storage service failure during base64 upload: %s", exc)
+                            raise HTTPException(
+                                status_code=status.HTTP_502_BAD_GATEWAY,
+                                detail="Failed to process image evidence.",
+                            )
+                    else:
+                        data["image_url"] = val_str
+            elif key == "video":
                 if isinstance(value, str):
-                    data["image_url"] = value
-                else:
-                    data["image_url"] = "file_uploaded_unsupported_in_base64_mode"
+                    data["video_url"] = value
             else:
                 data[key] = value
-        try:
-            return ReportCreateRequest(**data)
-        except ValidationError as exc:
-            raise RequestValidationError(exc.errors())
     else:
         try:
             json_data = await request.json()
-            return ReportCreateRequest(**json_data)
-        except ValidationError as exc:
-            raise RequestValidationError(exc.errors())
+        except Exception:
+            raise RequestValidationError(
+                [{"loc": ["body"], "msg": "Invalid JSON", "type": "value_error"}]
+            )
+
+        data = dict(json_data)
+        raw_img = data.get("image_url") or data.get("image")
+        if raw_img and isinstance(raw_img, str) and raw_img.strip():
+            val_str = raw_img.strip()
+            if val_str.startswith("data:image/") or (
+                not val_str.startswith("http://")
+                and not val_str.startswith("https://")
+                and not val_str.startswith("/media/")
+            ):
+                try:
+                    img_bytes, _ = storage_service.decode_base64_image(val_str)
+                    stored_url = await storage_service.store_evidence(
+                        img_bytes, preliminary_id, evidence_type="before"
+                    )
+                    data["image_url"] = stored_url
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Image validation failed: {exc}",
+                    )
+                except Exception as exc:
+                    logger.exception("Storage service failure during json upload: %s", exc)
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Failed to process image evidence.",
+                    )
+            else:
+                data["image_url"] = val_str
+
+    try:
+        return ReportCreateRequest(**data)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors())
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -134,12 +213,24 @@ async def create_report(
     payload: ReportCreateRequest = Depends(get_report_create_payload),
 ) -> ReportResponse:
     """Any authenticated active user can create a waste report."""
-    report = await report_service.create_report(db, current_user.id, payload)
+    try:
+        report = await report_service.create_report(db, current_user.id, payload)
+        await db.commit()
+        await db.refresh(report)
+    except Exception as exc:
+        # Attempt orphan cleanup if image was uploaded to storage
+        if payload.image_url and not payload.image_url.startswith("http"):
+            await storage_service.delete_evidence(payload.image_url)
+        raise exc
     
-    # Run analysis pipeline synchronously
-    success = await report_service.run_analysis_pipeline(db, report)
-    if not success:
-        logger.warning(f"AI analysis failed for report {report.id} on creation, leaving as pending.")
+    # Run analysis pipeline synchronously with exception shielding (P0: report must survive AI failure)
+    try:
+        success = await report_service.run_analysis_pipeline(db, report)
+        if not success:
+            logger.warning(f"AI analysis failed for report {report.id} on creation, leaving as pending.")
+    except Exception as exc:
+        logger.exception(f"Unexpected error in analysis pipeline for report {report.id}: {exc}")
+        success = False
     
     # Notify users
     notify_ids = [current_user.id]
@@ -356,6 +447,26 @@ async def update_report(
                 detail="Only officers and commissioners can change report priority.",
             )
 
+    # Process image fields if base64 provided
+    for field_name, ev_type in [("image_url", "before"), ("before_image_url", "before"), ("after_image_url", "after")]:
+        val = getattr(payload, field_name, None)
+        if val and (val.startswith("data:") or len(val) > 500) and not val.startswith("/media/"):
+            try:
+                img_bytes, _ = storage_service.decode_base64_image(val)
+                stored_url = await storage_service.store_evidence(img_bytes, report_id, evidence_type=ev_type)
+                setattr(payload, field_name, stored_url)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Image validation failed: {exc}",
+                )
+            except Exception as exc:
+                logger.exception("Storage failure during report update: %s", exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to process image evidence.",
+                )
+
     report = await report_service.update_report(db, report, payload)
     return ReportResponse.model_validate(report)
 
@@ -403,15 +514,28 @@ async def change_status(
         comm_res = await db.execute(select(User.id).where(User.role == "commissioner"))
         notify_ids.extend(comm_res.scalars().all())
 
+    event_type = "status_changed"
+    title = f"Report Status Updated: {payload.new_status}"
+    message = f"Your report status has been updated to {payload.new_status}."
+
+    if payload.new_status == "in_progress" and payload.label and "reject" in payload.label.lower():
+        event_type = "evidence_rejected"
+        title = "Cleanup Evidence Rejected — Re-cleanup In Progress"
+        message = f"Cleanup evidence for report #{report.id} was rejected ({payload.label}). Field crew is performing re-cleanup."
+    elif payload.new_status == "verified":
+        event_type = "report_verified"
+        title = "Report Verified & Certified"
+        message = f"Your report #{report.id} has been officially verified by municipal authorities."
+
     await _notify_users(
         db=db,
         background_tasks=background_tasks,
         email_svc=email_svc,
         user_ids=list(set(notify_ids)),
         report_id=report.id,
-        event_type="status_changed",
-        title=f"Report Status Updated: {payload.new_status}",
-        message=f"Your report status has been updated to {payload.new_status}.",
+        event_type=event_type,
+        title=title,
+        message=message,
     )
     await db.commit()
     await db.refresh(history)
@@ -507,10 +631,40 @@ async def resolve_report(
             detail="Report not found.",
         )
 
+    after_image_url = payload.after_image_url.strip()
+    if after_image_url.startswith("data:image/") or not (
+        after_image_url.startswith("http://") or after_image_url.startswith("https://") or after_image_url.startswith("/media/") or after_image_url.startswith("media/")
+    ):
+        try:
+            img_bytes, _ = storage_service.decode_base64_image(after_image_url)
+            after_image_url = await storage_service.store_evidence(
+                img_bytes, str(report_id), evidence_type="after"
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"After-image validation failed: {exc}",
+            )
+        except Exception as exc:
+            logger.exception("Storage service failure during after-image upload: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to store after-image evidence.",
+            )
+    elif storage_service.is_application_storage_url(after_image_url):
+        # Valid application-managed storage URL
+        pass
+    else:
+        # Untrusted external URL
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External or unmanaged image URLs are not permitted as cleanup evidence. Please upload genuine image evidence.",
+        )
+
     try:
         history = await report_service.resolve_report(
             db, report,
-            after_image_url=payload.after_image_url,
+            after_image_url=after_image_url,
             resolution_notes=payload.resolution_notes,
         )
     except ValueError as exc:
@@ -519,6 +673,7 @@ async def resolve_report(
             detail=str(exc),
         )
     
+    # 1. Notify Citizen Reporter
     await _notify_users(
         db=db,
         background_tasks=background_tasks,
@@ -529,6 +684,22 @@ async def resolve_report(
         title="Report Resolved",
         message="Your report has been resolved and is pending final verification.",
     )
+
+    # 2. Notify Municipal Officers & Commissioners for Verification Queue
+    officers_res = await db.execute(select(User.id).where(User.role.in_(["officer", "commissioner"])))
+    officer_ids = officers_res.scalars().all()
+    if officer_ids:
+        await _notify_users(
+            db=db,
+            background_tasks=background_tasks,
+            email_svc=email_svc,
+            user_ids=list(officer_ids),
+            report_id=report.id,
+            event_type="verification_required",
+            title="Cleanup Verification Required",
+            message=f"Cleanup evidence has been submitted for report #{report.id}. Verification required.",
+        )
+
     await db.commit()
     await db.refresh(history)
 

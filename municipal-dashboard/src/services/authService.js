@@ -15,14 +15,26 @@ export const authService = {
     });
 
     api.setToken(access_token);
-    
+
     // Fetch profile after login
     const user = await api.get('/auth/me');
     return { token: access_token, user };
   },
 
-  async loginWithGoogle() {
-    throw new Error("Google Sign-In is not currently supported by the backend.");
+  async forgotPassword(email) {
+    if (!email) throw new Error('Please enter your email address.');
+    return await api.post('/auth/forgot-password', { email: email.trim() });
+  },
+
+  async resetPassword(token, newPassword) {
+    if (!token) throw new Error('Reset token is required.');
+    if (!newPassword || newPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters long.');
+    }
+    return await api.post('/auth/reset-password', {
+      token: token.trim(),
+      new_password: newPassword
+    });
   },
 
   async getCurrentUser() {

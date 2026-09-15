@@ -30,23 +30,26 @@ export const Notifications: React.FC = () => {
   const [prefs, setPrefs] = useState<NotificationPreferences>(() =>
     notificationService.getPreferences()
   );
-  const [permissionStatus, setPermissionStatus] = useState<string>('default');
-
-  const loadNotifications = async () => {
-    setIsLoading(true);
-    try {
-      const data = await apiService.getNotifications();
-      setNotifications(data || []);
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [permissionStatus, setPermissionStatus] = useState<string>(() =>
+    notificationService.getPermissionStatus()
+  );
 
   useEffect(() => {
-    setPermissionStatus(notificationService.getPermissionStatus());
-    loadNotifications();
+    let isMounted = true;
+    apiService.getNotifications()
+      .then((data) => {
+        if (isMounted) setNotifications(data || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load notifications:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleMarkRead = async (id: string) => {

@@ -98,7 +98,11 @@
     "duplicateDesc": "Your report has been linked to the existing issue.",
     "existingReport": "Existing Report",
     "viewExistingReport": "View Existing Report",
-    "newReportCreated": "New report created"
+    "newReportCreated": "New report created",
+    "aiPendingTitle": "AI Analysis Pending",
+    "aiPendingDesc": "Your report has been saved successfully and is awaiting automated triage or municipal review.",
+    "assignmentPendingTitle": "Municipal Assignment Pending",
+    "assignmentPendingDesc": "Municipal operations will assign a field crew and cleanup vehicle once triaged."
   },
   "reportsList": {
     "title": "MY REPORTS",

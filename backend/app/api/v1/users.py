@@ -3,15 +3,16 @@ Users management router — /api/v1/users/...
 
 Endpoints
 ---------
-GET  /users/me          Alias — same as /auth/me (convenience)
-GET  /users/{id}        Get a user by ID (officer/commissioner only)
-GET  /users             List users (commissioner only)
+GET   /users/me          Alias — same as /auth/me (convenience)
+PATCH /users/me          Update current user profile
+GET   /users/{id}        Get a user by ID (officer/commissioner only)
+GET   /users             List users (commissioner only)
 """
 
 from __future__ import annotations
 
-import uuid
 import logging
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,7 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_active_user, require_roles
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import UserResponse
+from app.schemas.auth import MessageResponse, UpdateProfileRequest, UserResponse
+from app.services import auth as auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,35 @@ async def get_me(
 ) -> UserResponse:
     """Return the profile of the currently authenticated user."""
     return UserResponse.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    summary="Update current user profile",
+)
+async def update_me(
+    payload: UpdateProfileRequest,
+    current_user: Annotated[User, Depends(require_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserResponse:
+    """Update current user's profile information (name, phone, ward, department, avatar_url)."""
+    updated_user = await auth_service.update_user_profile(db, current_user, payload)
+    return UserResponse.model_validate(updated_user)
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    summary="Delete / deactivate current user account",
+)
+async def delete_me(
+    current_user: Annotated[User, Depends(require_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MessageResponse:
+    """Safely deactivate current user's account and invalidate sessions."""
+    await auth_service.deactivate_or_delete_user(db, current_user)
+    return MessageResponse(message="Account successfully deleted.")
 
 
 @router.get(

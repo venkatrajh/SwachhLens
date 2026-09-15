@@ -9,6 +9,10 @@ import {
   adaptReportsOverTime,
   adaptRecyclablePercent,
   formatDurationSeconds,
+  adaptBackendSummaryKPIs,
+  adaptBackendWasteDistribution,
+  adaptBackendPriorityDistribution,
+  adaptBackendTrends,
 } from '../services/analyticsAdapter';
 
 const AppContext = createContext();
@@ -19,15 +23,22 @@ export const AppProvider = ({ children }) => {
     totalReports: 0, pending: 0, highPriority: 0, critical: 0,
     inProgress: 0, completed: 0,
   });
+  const [analyticsDateRange, setAnalyticsDateRange] = useState('all');
+  const [hotspots, setHotspots] = useState([]);
   const [analyticsData, setAnalyticsData] = useState({
     reportsOverTime: [],
     wasteTypeDistribution: [],
     priorityDistribution: [],
-    topHotspots: [],       // backend gap — no endpoint; always empty in Phase I
-    responseSLA: null,     // replaced by real performance metrics
-    performance: null,     // populated from /analytics/performance
+    topHotspots: [],
+    hotspots: [],
+    responseSLA: null,
+    performance: null,
     performanceLoading: false,
     performanceError: null,
+    recyclablePercent: null,
+    totalReports: 0,
+    loading: false,
+    error: null,
   });
   const [teams, setTeams] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -35,6 +46,102 @@ export const AppProvider = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { user, isAuthenticated, isLoading, login, logout, authError } = useAuth();
+
+  const getDateParams = (range) => {
+    if (!range || range === 'all') return { startDate: null, endDate: null };
+    const now = new Date();
+    let start = new Date(now);
+    if (range === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else if (range === '7d') {
+      start.setDate(now.getDate() - 7);
+    } else if (range === '30d') {
+      start.setDate(now.getDate() - 30);
+    }
+    return {
+      startDate: start.toISOString(),
+      endDate: now.toISOString(),
+    };
+  };
+
+  const loadAnalytics = async (range = analyticsDateRange) => {
+    setAnalyticsDateRange(range);
+    setAnalyticsData(prev => ({ ...prev, loading: true, error: null }));
+
+    const { startDate, endDate } = getDateParams(range);
+    const q = [];
+    if (startDate) q.push(`start_date=${encodeURIComponent(startDate)}`);
+    if (endDate) q.push(`end_date=${encodeURIComponent(endDate)}`);
+    const qs = q.length ? `?${q.join('&')}` : '';
+    const trendQs = q.length ? `?${q.join('&')}&interval=day` : '?interval=day';
+    const hotspotQs = q.length ? `?${q.join('&')}&radius_meters=250.0&min_reports=2` : '?radius_meters=250.0&min_reports=2';
+
+    try {
+      const [summaryRes, trendsRes, perfRes, hotspotsRes] = await Promise.allSettled([
+        api.get(`/analytics/summary${qs}`),
+        api.get(`/analytics/trends${trendQs}`),
+        api.get(`/analytics/performance${qs}`),
+        api.get(`/analytics/hotspots${hotspotQs}`),
+      ]);
+
+      let backendSummary = null;
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        backendSummary = summaryRes.value;
+        const summaryKPIs = adaptBackendSummaryKPIs(backendSummary);
+        if (summaryKPIs && range === 'all') {
+          // Keep dashboard KPIs synchronized with full database intake
+          setKpis(summaryKPIs);
+        }
+      }
+
+      let backendTrends = null;
+      if (trendsRes.status === 'fulfilled' && trendsRes.value) {
+        backendTrends = trendsRes.value;
+      }
+
+      let backendPerf = null;
+      if (perfRes.status === 'fulfilled' && perfRes.value) {
+        const perf = perfRes.value;
+        backendPerf = {
+          completedCount: perf.completed_report_count ?? 0,
+          verifiedCount: perf.verified_report_count ?? 0,
+          pendingResolution: perf.pending_resolution_count ?? 0,
+          avgResolutionDisplay: formatDurationSeconds(perf.average_resolution_duration_seconds),
+          avgVerificationDisplay: formatDurationSeconds(perf.average_verification_duration_seconds),
+        };
+      }
+
+      let detectedHotspots = [];
+      if (hotspotsRes.status === 'fulfilled' && hotspotsRes.value) {
+        detectedHotspots = hotspotsRes.value.hotspots || [];
+      }
+      setHotspots(detectedHotspots);
+
+      setAnalyticsData(prev => ({
+        ...prev,
+        loading: false,
+        reportsOverTime: backendTrends ? adaptBackendTrends(backendTrends) : prev.reportsOverTime,
+        wasteTypeDistribution: backendSummary ? adaptBackendWasteDistribution(backendSummary) : prev.wasteTypeDistribution,
+        priorityDistribution: backendSummary ? adaptBackendPriorityDistribution(backendSummary) : prev.priorityDistribution,
+        recyclablePercent: (backendSummary && backendSummary.total_reports > 0)
+          ? Math.round(((backendSummary.recyclable_count || 0) / backendSummary.total_reports) * 100)
+          : prev.recyclablePercent,
+        totalReports: backendSummary ? backendSummary.total_reports : prev.totalReports,
+        hotspots: detectedHotspots,
+        topHotspots: detectedHotspots,
+        performance: backendPerf || prev.performance,
+        performanceLoading: false,
+        performanceError: null,
+      }));
+    } catch (err) {
+      console.error("Failed to load analytics suite:", err);
+      setAnalyticsData(prev => ({
+        ...prev,
+        loading: false,
+        error: "Failed to load complete analytics suite.",
+      }));
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -49,50 +156,24 @@ export const AppProvider = ({ children }) => {
       setTeams(teamsData || []);
       setVehicles(vehiclesData || []);
 
-      // Derive analytics from the already-fetched report list (no extra API call)
-      setKpis(adaptDashboardKPIs(adapted));
+      // Derive fallback analytics from the report list if backend analytics haven't loaded yet
+      setKpis(prev => prev.totalReports === 0 ? adaptDashboardKPIs(adapted) : prev);
       setAnalyticsData(prev => ({
         ...prev,
-        reportsOverTime: adaptReportsOverTime(adapted),
-        wasteTypeDistribution: adaptWasteDistribution(adapted),
-        priorityDistribution: adaptPriorityDistribution(adapted),
-        recyclablePercent: adaptRecyclablePercent(adapted),
+        reportsOverTime: prev.reportsOverTime.length === 0 ? adaptReportsOverTime(adapted) : prev.reportsOverTime,
+        wasteTypeDistribution: prev.wasteTypeDistribution.length === 0 ? adaptWasteDistribution(adapted) : prev.wasteTypeDistribution,
+        priorityDistribution: prev.priorityDistribution.length === 0 ? adaptPriorityDistribution(adapted) : prev.priorityDistribution,
+        recyclablePercent: prev.recyclablePercent === null ? adaptRecyclablePercent(adapted) : prev.recyclablePercent,
       }));
     } catch (err) {
       console.error("Failed to load dashboard data:", err);
     }
   };
 
-  // Separately fetch performance metrics (requires DB aggregation, not derivable client-side)
-  const loadPerformance = async () => {
-    setAnalyticsData(prev => ({ ...prev, performanceLoading: true, performanceError: null }));
-    try {
-      const perf = await api.get('/analytics/performance');
-      setAnalyticsData(prev => ({
-        ...prev,
-        performanceLoading: false,
-        performance: {
-          completedCount: perf.completed_report_count ?? 0,
-          verifiedCount: perf.verified_report_count ?? 0,
-          pendingResolution: perf.pending_resolution_count ?? 0,
-          avgResolutionDisplay: formatDurationSeconds(perf.average_resolution_duration_seconds),
-          avgVerificationDisplay: formatDurationSeconds(perf.average_verification_duration_seconds),
-        },
-      }));
-    } catch (err) {
-      console.error("Failed to load performance analytics:", err);
-      setAnalyticsData(prev => ({
-        ...prev,
-        performanceLoading: false,
-        performanceError: "Performance data temporarily unavailable.",
-      }));
-    }
-  };
-
   useEffect(() => {
     if (isAuthenticated) {
       loadData();
-      loadPerformance();
+      loadAnalytics('all');
     }
   }, [isAuthenticated]);
 
@@ -151,7 +232,7 @@ export const AppProvider = ({ children }) => {
 
   const verifyCleanup = async (complaintId) => {
     try {
-      await api.post(`/reports/${complaintId}/status`, { new_status: "verified" });
+      await api.post(`/reports/${complaintId}/status`, { new_status: "verified", label: "Cleanup officially verified and certified" });
       await loadData();
     } catch (err) {
       console.error("Failed to verify cleanup:", err);
@@ -159,8 +240,29 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const rejectCleanup = async (complaintId, reason) => {
+    try {
+      const label = reason ? `Evidence rejected: ${reason}` : 'Evidence rejected: Re-cleanup requested';
+      await api.post(`/reports/${complaintId}/status`, { new_status: "in_progress", label });
+      await loadData();
+    } catch (err) {
+      console.error("Failed to reject cleanup:", err);
+      throw err;
+    }
+  };
+
   const getComplaintById = (id) => {
     return complaints.find(c => c.id.toLowerCase() === (id || '').toLowerCase());
+  };
+
+  const getReportHistory = async (complaintId) => {
+    try {
+      const res = await api.get(`/reports/${complaintId}/history`);
+      return res.data || [];
+    } catch (err) {
+      console.warn(`Failed to fetch history for ${complaintId}:`, err);
+      return [];
+    }
   };
 
   return (
@@ -171,6 +273,9 @@ export const AppProvider = ({ children }) => {
         vehicles,
         kpis,
         analyticsData,
+        analyticsDateRange,
+        loadAnalytics,
+        hotspots,
         isNavbarCollapsed,
         toggleNavbar,
         searchQuery,
@@ -187,7 +292,9 @@ export const AppProvider = ({ children }) => {
         updateStatus,
         resolveReport,
         verifyCleanup,
+        rejectCleanup,
         getComplaintById,
+        getReportHistory,
       }}
     >
       {children}

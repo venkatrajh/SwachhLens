@@ -12,7 +12,8 @@ from app.schemas.analytics import (
     AnalyticsSummaryResponse,
     FleetWorkloadResponse,
     PerformanceResponse,
-    TrendsResponse
+    TrendsResponse,
+    HotspotsResponse,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -70,3 +71,25 @@ async def get_trends(
     interval: str = Query("day", pattern="^(day|week|month)$", description="Aggregation interval"),
 ) -> TrendsResponse:
     return await analytics.get_trends(db, start_date=start_date, end_date=end_date, interval=interval)
+
+
+@router.get(
+    "/hotspots",
+    response_model=HotspotsResponse,
+    summary="Get municipal waste incident geographic density hotspots",
+)
+async def get_hotspots(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
+    start_date: Optional[datetime] = Query(None, description="Filter by start date"),
+    end_date: Optional[datetime] = Query(None, description="Filter by end date"),
+    radius_meters: float = Query(250.0, ge=50.0, le=5000.0, description="Hotspot cluster radius in meters"),
+    min_reports: int = Query(2, ge=2, le=50, description="Minimum report count to qualify as a hotspot"),
+) -> HotspotsResponse:
+    return await analytics.detect_hotspots(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        radius_meters=radius_meters,
+        min_reports=min_reports,
+    )

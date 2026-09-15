@@ -177,9 +177,9 @@ export const Home: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] block leading-tight">
-                  {t('home.nearbyIssues')}
+                  Civic Register
                 </span>
-                <span className="text-[10px] text-[#64736A] dark:text-[#A9BBB1]">In your ward</span>
+                <span className="text-[10px] text-[#64736A] dark:text-[#A9BBB1]">All municipal reports</span>
               </div>
             </button>
           </div>

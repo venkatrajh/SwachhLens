@@ -134,3 +134,102 @@ def test_date_filtering(client: TestClient) -> None:
     resp = client.get("/api/v1/analytics/summary?start_date=2099-01-01T00:00:00Z", headers=_auth(officer_token))
     assert resp.status_code == 200
     assert resp.json()["total_reports"] == 0
+
+
+def test_haversine_distance_direct() -> None:
+    from app.services.analytics import haversine_distance_meters
+    # Distance to self is 0
+    assert haversine_distance_meters(13.0827, 80.2707, 13.0827, 80.2707) == 0.0
+    # Two points ~111 meters apart in latitude (0.001 deg approx 111m)
+    d = haversine_distance_meters(13.0827, 80.2707, 13.0837, 80.2707)
+    assert 105.0 < d < 120.0
+
+
+def test_hotspots_endpoint_empty(client: TestClient) -> None:
+    officer_id, officer_token = _create_user_directly(role="officer")
+    resp = client.get(
+        "/api/v1/analytics/hotspots?start_date=2099-01-01T00:00:00Z",
+        headers=_auth(officer_token)
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_hotspots"] == 0
+    assert data["radius_meters"] == 250.0
+    assert data["min_reports"] == 2
+    assert data["hotspots"] == []
+
+
+async def seed_hotspot_reports():
+    async with TestSessionLocal() as db:
+        user_id = uuid.uuid4()
+        base_time = datetime(2031, 5, 1, 10, 0, 0, tzinfo=timezone.utc)
+        
+        # Cluster A: 3 valid reports within ~50 meters of (13.0827, 80.2707)
+        r1 = Report(
+            id=uuid.uuid4(), user_id=user_id, status="pending", priority="medium",
+            waste_type="plastic", severity_score=4.0, is_hazardous=False, duplicate=False,
+            latitude=13.0827, longitude=80.2707, address_label="North Gate Zone A",
+            reported_at=base_time
+        )
+        r2 = Report(
+            id=uuid.uuid4(), user_id=user_id, status="assigned", priority="critical",
+            waste_type="plastic", severity_score=7.5, is_hazardous=True, duplicate=False,
+            latitude=13.0830, longitude=80.2710, address_label="North Gate Zone B",
+            reported_at=base_time + timedelta(hours=1)
+        )
+        r3 = Report(
+            id=uuid.uuid4(), user_id=user_id, status="pending", priority="low",
+            waste_type="organic", severity_score=3.0, is_hazardous=False, duplicate=False,
+            latitude=13.0825, longitude=80.2705, address_label="North Gate Zone C",
+            reported_at=base_time + timedelta(hours=2)
+        )
+        
+        # Duplicate report in Cluster A (must be excluded from hotspot clustering)
+        r_dup = Report(
+            id=uuid.uuid4(), user_id=user_id, status="duplicate", priority="high",
+            waste_type="plastic", severity_score=8.0, is_hazardous=False, duplicate=True,
+            latitude=13.0827, longitude=80.2707, address_label="North Gate Duplicate",
+            reported_at=base_time + timedelta(hours=3)
+        )
+        
+        # Isolated report far away (~10 km) - should not form a hotspot alone (min_reports=2)
+        r_iso = Report(
+            id=uuid.uuid4(), user_id=user_id, status="pending", priority="low",
+            waste_type="glass", severity_score=2.0, is_hazardous=False, duplicate=False,
+            latitude=13.0000, longitude=80.2000, address_label="Isolated South Point",
+            reported_at=base_time + timedelta(hours=4)
+        )
+        
+        db.add_all([r1, r2, r3, r_dup, r_iso])
+        await db.commit()
+
+
+def test_hotspots_clustering_and_attributes(client: TestClient) -> None:
+    asyncio.run(seed_hotspot_reports())
+    
+    officer_id, officer_token = _create_user_directly(role="officer")
+    resp = client.get(
+        "/api/v1/analytics/hotspots?start_date=2031-01-01T00:00:00Z&end_date=2031-12-31T23:59:59Z",
+        headers=_auth(officer_token)
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    
+    assert data["total_hotspots"] == 1
+    assert data["radius_meters"] == 250.0
+    assert len(data["hotspots"]) == 1
+    
+    hs = data["hotspots"][0]
+    assert hs["report_count"] == 3
+    assert hs["primary_waste_type"] == "plastic"
+    assert hs["max_severity"] == 7.5
+    assert hs["primary_priority"] == "CRITICAL"
+    assert 13.082 < hs["center_lat"] < 13.084
+    assert 80.270 < hs["center_lon"] < 80.272
+    assert "North Gate" in hs["address_summary"]
+
+
+def test_hotspots_citizen_forbidden(client: TestClient) -> None:
+    citizen_id, citizen_token = _create_user_directly(role="citizen")
+    resp = client.get("/api/v1/analytics/hotspots", headers=_auth(citizen_token))
+    assert resp.status_code == 403

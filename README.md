@@ -1,6 +1,13 @@
-# SwachhLens — AI-Powered Civic Waste Response Decision Support System
+# SwachhLens — AI Civic Waste Response Platform
 
-> A production-grade civic intelligence and waste management platform closing the feedback loop between everyday citizens and municipal sanitation authorities through mobile reporting, Vision AI classification, geospatial duplicate detection, rule-based fleet dispatch, and site clearance audit workflows.
+[![Version](https://img.shields.io/badge/version-2.0.0-emerald.svg)](package.json)
+[![Backend](https://img.shields.io/badge/backend-FastAPI%200.115-009688.svg?logo=fastapi)](backend/)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg?logo=python)](backend/)
+[![Frontend](https://img.shields.io/badge/frontend-React%2019%20%7C%20Vite-61DAFB.svg?logo=react)](citizen-mobile/)
+[![Tests](https://img.shields.io/badge/tests-270%20passing%20(100%25)-brightgreen.svg)](backend/tests/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+> **SwachhLens v2.0** is an enterprise-grade AI-powered civic intelligence and municipal waste response decision support system. It closes the operational loop between everyday citizens and municipal sanitation authorities through mobile reporting, Multimodal Vision AI classification, geospatial duplicate detection, rule-based fleet dispatch, and site clearance audit workflows.
 
 ---
 
@@ -127,7 +134,7 @@ C:\PROJECTS\SwachhLens\
 │   │   └── services/                    # Vision AI, geocoding, duplicate filter, decision engine
 │   ├── scripts/
 │   │   └── seed_fleet.py                # Municipal teams & vehicles initialization script
-│   ├── tests/                           # 13 test suites (210 passing tests)
+│   ├── tests/                           # 14 test suites (270 passing tests)
 │   ├── run_server.py                    # Production server bootstrap runner
 │   ├── requirements.txt                 # Pinned Python dependencies
 │   └── README.md                        # Dedicated backend developer manual
@@ -172,7 +179,7 @@ C:\PROJECTS\SwachhLens\
 | | Vision AI | Groq API | qwen/qwen3.6-27b | Low-latency multimodal waste classification & volume |
 | | Reverse Geocoding | OSM Nominatim | Public API | 2-second timeout lookup with coordinate fallback |
 | | Email | Brevo | 7.6.0 (SDK) | Citizen verification and password reset transactional emails |
-| | Quality Assurance | Pytest & pytest-asyncio | 8.3.4 / 0.24.0 | 13 test suites, 210 passing automated tests |
+| | Quality Assurance | Pytest & pytest-asyncio | 8.3.4 / 0.24.0 | 14 test suites, 270 passing automated tests |
 | **Citizen Mobile** | Framework | React | 19.2.8 | Declarative reactive UI rendering |
 | | Bundler | Vite | 8.2.0 | Next-generation frontend build tooling |
 | | Styling | Tailwind CSS | 4.3.3 | High-performance utility-first styling |
@@ -184,11 +191,19 @@ C:\PROJECTS\SwachhLens\
 | | Bundler | Vite | 6.2.0 | Instant HMR development server |
 | | Design System | Liquid Glass | Custom CSS | Frosted glassmorphism, tokenized themes, dark/light mode |
 | | GIS Mapping | Leaflet & OSM | 1.9.4 | Real-time incident pins, cluster inspection, dispatch |
-| | Icons | Lucide React | 1.16.0 | Operational action iconography |
+| | Icons | Lucide React | 1.32.0 | Operational action iconography |
 
 ---
 
 ## Quickstart & Local Setup
+
+### Port Map Summary
+
+| Service | Port / URL | Description | Default Credentials / Access |
+| :--- | :--- | :--- | :--- |
+| **Backend REST API** | `http://localhost:8000` | FastAPI Async Core & AI Engine | OpenAPI Docs: `http://localhost:8000/docs` |
+| **Citizen Mobile PWA** | `http://localhost:5173` | Citizen Reporting PWA (Mobile/Desktop) | Self-service registration & OTP verification |
+| **Municipal Dashboard** | `http://localhost:3000` | Authority Command & Dispatch Cockpit | Officer & Admin email/password login |
 
 ### Prerequisites
 
@@ -214,7 +229,7 @@ pip install -r requirements.txt
 
 # Configure environment variables
 Copy-Item .env.example .env
-# Edit .env with your PostgreSQL credentials and API keys
+# Edit .env with your PostgreSQL credentials, storage backend, and API keys
 
 # Apply database migrations to head
 alembic upgrade head
@@ -298,8 +313,22 @@ PASSWORD_RESET_EXPIRE_MINUTES=30
 
 # Vision AI Engine (Groq)
 GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=qwen/qwen3.6-27b
+GROQ_MODEL=qwen/qwen3.8-27b
 GROQ_TIMEOUT=30
+
+# Storage Backend Configuration
+# Option A: Local Filesystem Storage (Default for development)
+STORAGE_BACKEND=local
+STORAGE_LOCAL_DIR=media
+STORAGE_MAX_FILE_SIZE_MB=5
+STORAGE_ALLOWED_TYPES=image/jpeg,image/png,image/webp
+
+# Option B: Supabase Bucket Storage (Recommended for staging/production)
+# STORAGE_BACKEND=supabase
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_KEY=your_supabase_service_role_key
+# SUPABASE_STORAGE_BUCKET=swachhlens-evidence
+# STORAGE_PUBLIC_BASE_URL=https://your-project.supabase.co/storage/v1/object/public/swachhlens-evidence
 
 # Transactional Email (Brevo)
 BREVO_API_KEY=your_brevo_api_key_here
@@ -323,32 +352,30 @@ VITE_USE_MOCK_API=false
 ```env
 # Backend REST Gateway URL
 VITE_API_URL=http://localhost:8000/api/v1
-
-# Optional Google OAuth 2.0 Client ID for Municipal SSO
-VITE_GOOGLE_CLIENT_ID=
 ```
 
 ---
 
 ## Verification & Automated Test Suite
 
-SwachhLens maintains an automated testing harness across 13 test suites totaling 210 passing tests:
+SwachhLens maintains an automated testing harness across 14 test suites totaling 270 passing tests:
 
 ```powershell
 # From the backend directory with active virtual environment:
 pytest -v
 ```
 
-### Test Suite Distribution (210 Passing Tests)
+### Test Suite Distribution (270 Passing Tests)
 
 | Test Module | File | Tests | Validation Domain |
 | :--- | :--- | :---: | :--- |
 | **Reports Workflow** | `tests/test_reports.py` | 52 | Report creation, state transitions, timeline generation, permissions |
 | **Database Models** | `tests/test_database.py` | 50 | SQLAlchemy models, UUID keys, relations, table constraints |
-| **Authentication** | `tests/test_auth.py` | 40 | Registration, login, password hashing, JWT claims, role gates |
+| **Authentication & Reactivation** | `tests/test_auth.py` | 42 | Registration, login, OTP verification, account reactivation, role gates |
 | **AI Vision Engine** | `tests/test_ai.py` | 23 | Groq vision client, prompt structure, JSON validation, heuristics |
+| **Storage & Evidence** | `tests/test_storage.py` | 13 | Local & Supabase storage adapters, image validation, MIME checks |
+| **Health Probe & Security** | `tests/test_health.py` | 15 | API uptime, readiness checks, 500 sanitization, docs gating |
 | **Duplicate Detection** | `tests/test_duplicate_detection.py` | 12 | 0.001° bounding box (~111m), 48h temporal cutoff, waste type matching |
-| **Health Probe** | `tests/test_health.py` | 9 | API uptime, service status, metadata response |
 | **Analytics & KPIs** | `tests/test_analytics.py` | 8 | Real-time aggregation, SLA tracking, fleet workload metrics |
 | **Notifications** | `tests/test_notifications.py` | 6 | In-app alerts, unread counts, status update notifications |
 | **Fleet Management** | `tests/test_fleet.py` | 4 | Team/vehicle capacities, allocation states, availability updates |
@@ -356,7 +383,7 @@ pytest -v
 | **Dispatch Reassignment** | `tests/test_reassign.py` | 1 | Team/vehicle reassignment, conflict prevention, audit trail |
 | **Fleet Seeding** | `tests/test_seed.py` | 1 | Seeding idempotency, initial records verification |
 | **E2E Verification** | `tests/test_e2e_verification.py` | 1 | Full lifecycle: report → AI → assign → dispatch → verify |
-| **Total** | | **210** | **100% Passing** |
+| **Total** | | **270** | **100% Passing** |
 
 ---
 
