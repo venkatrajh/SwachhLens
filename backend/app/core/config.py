@@ -63,6 +63,21 @@ class Settings(BaseSettings):
     # Supabase connection strings use the same format via the session pooler.
     database_url: str = ""
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, v: str) -> str:
+        """Automatically rewrite postgres:// and postgresql:// to postgresql+psycopg://."""
+        if not v or not isinstance(v, str):
+            return v
+        trimmed = v.strip()
+        if trimmed.startswith("postgresql+psycopg://"):
+            return trimmed
+        if trimmed.startswith("postgres://"):
+            return "postgresql+psycopg://" + trimmed[len("postgres://"):]
+        if trimmed.startswith("postgresql://"):
+            return "postgresql+psycopg://" + trimmed[len("postgresql://"):]
+        return trimmed
+
     # ── JWT (Phase 3) ────────────────────────────────────────────────────────
     # MUST be set to a long random secret in production.
     jwt_secret_key: str = "CHANGE-ME-IN-PRODUCTION-USE-A-LONG-RANDOM-SECRET"
@@ -86,8 +101,9 @@ class Settings(BaseSettings):
     brevo_sender_email: str = "noreply@swachlens.app"
     brevo_sender_name: str = "SwachhLens"
 
-    # ── Frontend (for email links) ────────────────────────────────────────────
+    # ── Frontend & Dashboard URLs (for email links) ───────────────────────────
     frontend_base_url: str = "http://localhost:3000"
+    dashboard_base_url: str = "http://localhost:3000"
 
     # ── AI / Vision (Groq Version 1.0) ───────────────────────────────────────
     groq_api_key: str | None = None

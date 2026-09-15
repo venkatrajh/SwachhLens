@@ -235,7 +235,7 @@ class BrevoEmailService:
         if base_url:
             effective_base_url = base_url.rstrip("/")
         elif user_role in ("officer", "commissioner"):
-            effective_base_url = "http://localhost:3000"
+            effective_base_url = settings.dashboard_base_url.rstrip("/") if settings.dashboard_base_url else "http://localhost:3000"
         else:
             effective_base_url = settings.frontend_base_url.rstrip("/") if settings.frontend_base_url else "http://localhost:5173"
 
