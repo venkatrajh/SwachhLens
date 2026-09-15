@@ -43,3 +43,5 @@ desktop.ini
 *.log
 *.tmp
 *.bak
+# Runtime-generated media and test artifacts
+backend/media/
