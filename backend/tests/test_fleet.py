@@ -50,10 +50,11 @@ def test_resolve_report(client: TestClient) -> None:
     # Transition to in_progress
     client.post(f"/api/v1/reports/{report_id}/status", json={"new_status": "in_progress"}, headers=_auth(officer_token))
     
-    # Resolve
+    # Resolve with valid evidence image data URI
+    valid_after_image = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
     resolve_resp = client.post(
         f"/api/v1/reports/{report_id}/resolve",
-        json={"after_image_url": "http://example.com/after.jpg", "resolution_notes": "All clean"},
+        json={"after_image_url": valid_after_image, "resolution_notes": "All clean"},
         headers=_auth(officer_token)
     )
     assert resolve_resp.status_code == 200
@@ -62,4 +63,4 @@ def test_resolve_report(client: TestClient) -> None:
     # Verify report status is updated
     get_resp = client.get(f"/api/v1/reports/{report_id}", headers=_auth(officer_token))
     assert get_resp.json()["status"] == "completed"
-    assert get_resp.json()["after_image_url"] == "http://example.com/after.jpg"
+    assert get_resp.json()["after_image_url"].startswith("/media/reports/")

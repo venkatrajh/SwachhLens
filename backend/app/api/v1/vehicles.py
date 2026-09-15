@@ -12,15 +12,18 @@ from app.services import fleet
 
 router = APIRouter(tags=["vehicles"])
 
-@router.get("/", response_model=list[VehicleResponse], summary="List all vehicles")
+@router.get("", response_model=list[VehicleResponse], summary="List all vehicles")
+@router.get("/", response_model=list[VehicleResponse], include_in_schema=False)
 async def list_vehicles(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles("officer", "commissioner"))],
     active_only: bool = False,
 ) -> list[VehicleResponse]:
-    return await fleet.list_vehicles(db, active_only=active_only)
+    vehicles = await fleet.list_vehicles(db, active_only=active_only)
+    return [VehicleResponse.model_validate(v) for v in vehicles]
 
-@router.post("/", response_model=VehicleResponse, summary="Create a vehicle")
+@router.post("", response_model=VehicleResponse, summary="Create a vehicle")
+@router.post("/", response_model=VehicleResponse, include_in_schema=False)
 async def create_vehicle(
     payload: VehicleCreate,
     db: Annotated[AsyncSession, Depends(get_db)],

@@ -132,8 +132,6 @@ export const Operations = () => {
             value={`${teams?.length || 0} Teams`}
             subtitle="Registered municipal crews"
             icon={Users}
-            trend="Live Backend"
-            trendType="positive"
           />
           <KPICard
             title="Fleet Units Deployed"
@@ -154,8 +152,6 @@ export const Operations = () => {
             value={analyticsData?.performance?.avgResolutionDisplay || 'N/A'}
             subtitle="System resolution time"
             icon={CheckCircle}
-            trend="Live Backend"
-            trendType="positive"
           />
         </div>
       </div>

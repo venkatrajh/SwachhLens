@@ -47,7 +47,9 @@ backend/
 │   ├── versions/
 │   │   ├── 0001_initial_schema.py     # Base tables: users, reports, teams, vehicles, status history
 │   │   ├── 0002_add_auth_fields_to_users.py # Verification tokens, reset tokens, active/verified flags
-│   │   └── 0003_create_notifications_table.py # In-app notification queue table
+│   │   ├── 0003_create_notifications_table.py # In-app notification queue table
+│   │   ├── 0004_add_otp_fields_to_users.py # 6-digit OTP verification & cooldown fields
+│   │   └── 0005_add_cv_metadata_to_reports.py # Computer vision JSONB metadata column
 │   └── README                         # Dedicated Alembic documentation
 ├── app/
 │   ├── main.py                        # FastAPI application factory, lifespan, CORS, error handling
@@ -423,14 +425,14 @@ All routes are prefixed with `/api/v1`.
 
 ---
 
-## Automated Testing Suite (210 Tests)
+## Automated Testing Suite (270 Tests)
 
 The backend test suite is built on `pytest` and `pytest-asyncio`. Tests utilize SQLite in-memory engines (`aiosqlite`) to guarantee isolated, lightning-fast execution.
 
 ### Running Tests
 
 ```powershell
-# Run all 210 tests with concise summary
+# Run all 270 tests with concise summary
 pytest -q
 
 # Run with verbose output
@@ -446,10 +448,11 @@ pytest tests/test_reports.py -v
 | :--- | :--- | :---: | :--- |
 | **Reports Workflow** | `tests/test_reports.py` | 52 | Report creation, state transitions, timeline generation, permissions |
 | **Database Models** | `tests/test_database.py` | 50 | SQLAlchemy models, UUID keys, relations, table constraints |
-| **Authentication** | `tests/test_auth.py` | 40 | Registration, login, password hashing, JWT claims, role gates |
+| **Authentication & Reactivation** | `tests/test_auth.py` | 42 | Registration, login, OTP verification, account reactivation, role gates |
 | **AI Vision Engine** | `tests/test_ai.py` | 23 | Groq vision client, prompt structure, JSON validation, heuristics |
+| **Storage & Evidence** | `tests/test_storage.py` | 13 | Local & Supabase storage adapters, image validation, MIME checks |
+| **Health Probe & Security** | `tests/test_health.py` | 15 | API uptime, readiness checks, 500 sanitization, docs gating |
 | **Duplicate Detection** | `tests/test_duplicate_detection.py` | 12 | 0.001° bounding box (~111m), 48h temporal cutoff, waste type matching |
-| **Health Probe** | `tests/test_health.py` | 9 | API uptime, service status, metadata response |
 | **Analytics & KPIs** | `tests/test_analytics.py` | 8 | Real-time aggregation, SLA tracking, fleet workload metrics |
 | **Notifications** | `tests/test_notifications.py` | 6 | In-app alerts, unread counts, status update notifications |
 | **Fleet Management** | `tests/test_fleet.py` | 4 | Team/vehicle capacities, allocation states, availability updates |
@@ -457,7 +460,7 @@ pytest tests/test_reports.py -v
 | **Dispatch Reassignment** | `tests/test_reassign.py` | 1 | Team/vehicle reassignment, conflict prevention, audit trail |
 | **Fleet Seeding** | `tests/test_seed.py` | 1 | Seeding idempotency, initial records verification |
 | **E2E Verification** | `tests/test_e2e_verification.py` | 1 | Full lifecycle: report → AI → assign → dispatch → verify |
-| **Total Passing Tests** | | **210** | **100% Passing** |
+| **Total Passing Tests** | | **270** | **100% Passing** |
 
 ---
 

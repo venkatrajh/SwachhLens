@@ -12,8 +12,8 @@ import { VerificationCard } from '../components/VerificationCard';
 import { LocationCard } from '../components/LocationCard';
 import { apiService } from '../services/api';
 import type { Report } from '../types/report';
-import { Clock, ChevronLeft, AlertTriangle, ExternalLink } from 'lucide-react';
-import { formatReportId } from '../utils/reportUtils';
+import { Clock, ChevronLeft, AlertTriangle, ExternalLink, Camera } from 'lucide-react';
+import { formatReportId, resolveImageUrl } from '../utils/reportUtils';
 
 export const ReportDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +23,7 @@ export const ReportDetails: React.FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -106,25 +107,42 @@ export const ReportDetails: React.FC = () => {
         )}
 
         {/* Main Photo Card */}
-        {report.image_url && (
-          <div className="relative rounded-3xl overflow-hidden bg-black aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+        {report.image_url && !imageError ? (
+          <div className="relative rounded-3xl overflow-hidden bg-black/90 aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card flex items-center justify-center">
             <img
-              src={report.image_url}
+              src={resolveImageUrl(report.image_url)}
               alt={report.waste_type || 'Reported Waste'}
-              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+              className="w-full h-full object-contain"
             />
-            <div className="absolute top-3 left-3 flex gap-2">
+            <div className="absolute top-3 left-3 flex gap-2 z-10">
               <PriorityBadge priority={report.priority} size="md" />
               <StatusBadge status={report.status} size="md" />
             </div>
             {report.duplicate && (
-              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold flex items-center gap-1">
+              <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold flex items-center gap-1 z-10">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>Linked Duplicate</span>
               </div>
             )}
           </div>
-        )}
+        ) : report.image_url && imageError ? (
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#EAF4EF] to-[#D5EADF] dark:from-[#132B20] dark:to-[#0D1C15] aspect-[16/10] border border-[#DCE7E1] dark:border-[#294037] shadow-card flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-[#168A5B]/10 dark:bg-[#39B77A]/20 flex items-center justify-center text-[#168A5B] dark:text-[#39B77A] mb-2">
+              <Camera className="w-6 h-6" />
+            </div>
+            <span className="text-sm font-bold text-[#17211B] dark:text-[#F2F7F4] capitalize">
+              {report.waste_type?.replace(/_/g, ' ') || 'Civic Incident Photo'}
+            </span>
+            <span className="text-xs text-[#64736A] dark:text-[#A9BBB1] mt-1">
+              Visual evidence archived on SwachhLens AI Gateway
+            </span>
+            <div className="absolute top-3 left-3 flex gap-2">
+              <PriorityBadge priority={report.priority} size="md" />
+              <StatusBadge status={report.status} size="md" />
+            </div>
+          </div>
+        ) : null}
 
         {/* Location & Metadata Bar */}
         <div className="space-y-2">
@@ -174,8 +192,8 @@ export const ReportDetails: React.FC = () => {
         {/* Before / After Cleanup Verification Card */}
         {isResolved && (
           <VerificationCard
-            beforeImage={report.before_image_url || report.image_url}
-            afterImage={report.after_image_url || undefined}
+            beforeImage={resolveImageUrl(report.before_image_url || report.image_url)}
+            afterImage={resolveImageUrl(report.after_image_url) || undefined}
             verifiedAt={report.verified_at}
           />
         )}

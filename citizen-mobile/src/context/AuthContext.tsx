@@ -5,6 +5,7 @@ import { apiService } from '../services/api';
 
 interface AuthContextType extends AuthState {
   login: (email: string, pass: string) => Promise<boolean>;
+  loginWithGoogle: (idToken: string) => Promise<boolean>;
   register: (name: string, email: string, pass: string, ward?: string) => Promise<any>;
   refreshUser: () => Promise<void>;
   logout: () => void;
@@ -72,6 +73,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithGoogle = async (idToken: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const { access_token } = await apiService.googleLogin(idToken);
+      localStorage.setItem(AUTH_TOKEN_KEY, access_token);
+
+      const userProfile = await apiService.getCurrentUser();
+      setUser(userProfile);
+      setIsAuthenticated(true);
+      return true;
+    } catch (err) {
+      console.error('Google login failed:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (name: string, email: string, pass: string, ward?: string): Promise<any> => {
     setIsLoading(true);
     try {
@@ -108,6 +127,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated,
         isLoading,
         login,
+        loginWithGoogle,
         register,
         refreshUser,
         logout,

@@ -16,8 +16,9 @@ import {
   ExternalLink,
   Clock,
   RefreshCw,
+  ImageOff,
 } from 'lucide-react';
-import { formatReportId } from '../utils/reportUtils';
+import { formatReportId, resolveImageUrl } from '../utils/reportUtils';
 
 export const Result: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,8 +27,24 @@ export const Result: React.FC = () => {
 
   const [report, setReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isImageLoading, setIsImageLoading] = useState<boolean>(true);
+  const [imageError, setImageError] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const confettiTriggeredRef = useRef<boolean>(false);
+
+  const triggerConfetti = React.useCallback(() => {
+    try {
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#168A5B', '#22A06B', '#EAF6EF', '#2E8B57'],
+        disableForReducedMotion: true,
+      });
+    } catch {
+      // Safe fallback
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -90,21 +107,7 @@ export const Result: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, navigate]);
-
-  const triggerConfetti = () => {
-    try {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ['#168A5B', '#22A06B', '#EAF6EF', '#2E8B57'],
-        disableForReducedMotion: true,
-      });
-    } catch {
-      // Safe fallback
-    }
-  };
+  }, [id, navigate, triggerConfetti]);
 
   if (isLoading) {
     return (
@@ -195,18 +198,38 @@ export const Result: React.FC = () => {
           </div>
         )}
 
-        {report.image_url && (
-          <div className="relative rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-850 aspect-[16/9] border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+        {report.image_url && !imageError ? (
+          <div className="relative rounded-2xl overflow-hidden bg-black/90 dark:bg-black/90 min-h-[200px] max-h-[320px] flex items-center justify-center border border-[#DCE7E1] dark:border-[#294037] shadow-card">
+            {isImageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-stone-100 dark:bg-[#14221B] z-10">
+                <RefreshCw className="w-6 h-6 animate-spin text-[#168A5B] dark:text-[#39B77A]" />
+              </div>
+            )}
             <img
-              src={report.image_url}
-              alt="Reported Waste"
-              className="w-full h-full object-cover"
+              src={resolveImageUrl(report.image_url)}
+              alt={report.waste_type || "Reported Waste"}
+              onLoad={() => setIsImageLoading(false)}
+              onError={() => {
+                setIsImageLoading(false);
+                setImageError(true);
+              }}
+              className="w-full max-h-[320px] object-contain"
             />
-            <div className="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-[10px] font-mono">
+            <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md text-white text-[10px] font-mono shadow-xs">
               {reportIdentifier}
             </div>
           </div>
-        )}
+        ) : report.image_url && imageError ? (
+          <div className="p-6 rounded-2xl bg-stone-100 dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] flex flex-col items-center justify-center text-center gap-2">
+            <ImageOff className="w-8 h-8 text-[#64736A] dark:text-[#A9BBB1]" />
+            <span className="text-xs font-semibold text-[#17211B] dark:text-[#F2F7F4]">
+              Visual evidence registered (preview unavailable)
+            </span>
+            <span className="text-[10px] font-mono text-[#64736A] dark:text-[#A9BBB1]">
+              {reportIdentifier}
+            </span>
+          </div>
+        ) : null}
 
         <AIResultCard report={report} />
 

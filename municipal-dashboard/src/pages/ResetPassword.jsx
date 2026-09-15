@@ -190,7 +190,7 @@ export const ResetPassword = () => {
               <Input
                 label="New Password"
                 type="password"
-                placeholder="••••••••••••"
+                placeholder="Enter new password (min. 8 characters)"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -199,7 +199,7 @@ export const ResetPassword = () => {
               <Input
                 label="Confirm New Password"
                 type="password"
-                placeholder="••••••••••••"
+                placeholder="Re-enter new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required

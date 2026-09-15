@@ -1,3 +1,5 @@
+import math
+from collections import Counter
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +15,9 @@ from app.schemas.analytics import (
     WorkloadItem,
     PerformanceResponse,
     TrendItem,
-    TrendsResponse
+    TrendsResponse,
+    HotspotItem,
+    HotspotsResponse
 )
 
 async def get_analytics_summary(
@@ -260,4 +264,163 @@ async def get_trends(
     return TrendsResponse(
         interval=interval,
         trends=trends
+    )
+
+
+def haversine_distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate great-circle distance between two geographic coordinates in meters.
+    """
+    R = 6371000.0  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_phi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return R * c
+
+
+async def detect_hotspots(
+    db: AsyncSession,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    radius_meters: float = 250.0,
+    min_reports: int = 2,
+) -> HotspotsResponse:
+    """
+    Deterministic operational density clustering for municipal waste incident hotspots.
+
+    Algorithm:
+    - Filters valid, non-duplicate reports with real coordinates (latitude != 0, longitude != 0).
+    - Uses greedy seed-neighborhood clustering with Haversine distance metric (radius_meters = 250m).
+    - Calculates cluster center as arithmetic mean of member coordinates.
+    - Determines dominant waste type, max severity, and highest priority level per cluster.
+    - Sorts clusters primary by report_count DESC, secondary by max_severity DESC.
+    """
+    query = select(Report).where(
+        Report.latitude.isnot(None),
+        Report.longitude.isnot(None),
+        Report.latitude >= -90.0,
+        Report.latitude <= 90.0,
+        Report.longitude >= -180.0,
+        Report.longitude <= 180.0,
+        and_(Report.latitude != 0.0, Report.longitude != 0.0),
+        Report.duplicate == False,
+        Report.status != "duplicate",
+    )
+    if start_date:
+        query = query.where(Report.reported_at >= start_date)
+    if end_date:
+        query = query.where(Report.reported_at <= end_date)
+
+    query = query.order_by(Report.reported_at.desc(), Report.id.asc())
+    reports = list((await db.scalars(query)).all())
+
+    if not reports:
+        return HotspotsResponse(
+            total_hotspots=0,
+            radius_meters=radius_meters,
+            min_reports=min_reports,
+            hotspots=[],
+        )
+
+    # Priority hierarchy for cluster priority determination
+    priority_ranks = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+    assigned_report_ids = set()
+    clusters = []
+
+    # Iteratively find dense clusters
+    while True:
+        unassigned = [r for r in reports if r.id not in assigned_report_ids]
+        if not unassigned:
+            break
+
+        best_seed = None
+        best_neighbors = []
+
+        for candidate in unassigned:
+            c_lat = float(candidate.latitude)
+            c_lon = float(candidate.longitude)
+            neighbors = [
+                other for other in unassigned
+                if haversine_distance_meters(c_lat, c_lon, float(other.latitude), float(other.longitude)) <= radius_meters
+            ]
+            if best_seed is None or len(neighbors) > len(best_neighbors):
+                best_seed = candidate
+                best_neighbors = neighbors
+
+        if not best_neighbors or len(best_neighbors) < min_reports:
+            # Remaining unassigned reports are isolated (< min_reports)
+            break
+
+        # Form cluster from best_neighbors
+        cluster_members = best_neighbors
+        for m in cluster_members:
+            assigned_report_ids.add(m.id)
+
+        mean_lat = sum(float(m.latitude) for m in cluster_members) / len(cluster_members)
+        mean_lon = sum(float(m.longitude) for m in cluster_members) / len(cluster_members)
+
+        # Dominant waste type
+        waste_types = [m.waste_type for m in cluster_members if m.waste_type]
+        if waste_types:
+            dominant_waste = Counter(waste_types).most_common(1)[0][0]
+        else:
+            dominant_waste = "unclassified"
+
+        # Max severity
+        severities = [m.severity_score for m in cluster_members if m.severity_score is not None]
+        max_sev = max(severities) if severities else 0.0
+
+        # Highest priority
+        highest_prio = "low"
+        highest_prio_rank = 0
+        for m in cluster_members:
+            p = (m.priority or "medium").lower()
+            rank = priority_ranks.get(p, 2)
+            if rank > highest_prio_rank:
+                highest_prio_rank = rank
+                highest_prio = p
+
+        # Address summary
+        addresses = [m.address_label for m in cluster_members if m.address_label and m.address_label.strip()]
+        address_summary = addresses[0] if addresses else f"Zone near {mean_lat:.4f}° N, {mean_lon:.4f}° E"
+
+        clusters.append({
+            "center_lat": round(mean_lat, 6),
+            "center_lon": round(mean_lon, 6),
+            "report_count": len(cluster_members),
+            "primary_waste_type": dominant_waste,
+            "max_severity": round(max_sev, 1),
+            "primary_priority": highest_prio.upper(),
+            "address_summary": address_summary,
+            "radius_meters": radius_meters,
+        })
+
+    # Sort hotspots: primary report_count DESC, secondary max_severity DESC, tertiary center_lat ASC
+    clusters.sort(key=lambda c: (-c["report_count"], -c["max_severity"], c["center_lat"]))
+
+    hotspot_items = [
+        HotspotItem(
+            id=f"HS-{idx + 1:02d}",
+            center_lat=c["center_lat"],
+            center_lon=c["center_lon"],
+            report_count=c["report_count"],
+            primary_waste_type=c["primary_waste_type"],
+            max_severity=c["max_severity"],
+            primary_priority=c["primary_priority"],
+            address_summary=c["address_summary"],
+            radius_meters=c["radius_meters"],
+        )
+        for idx, c in enumerate(clusters)
+    ]
+
+    return HotspotsResponse(
+        total_hotspots=len(hotspot_items),
+        radius_meters=radius_meters,
+        min_reports=min_reports,
+        hotspots=hotspot_items,
     )

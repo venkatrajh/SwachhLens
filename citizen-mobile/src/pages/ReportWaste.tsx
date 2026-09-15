@@ -24,7 +24,9 @@ export const ReportWaste: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(() =>
+    sessionStorage.getItem('swachhlens_captured_photo') || null
+  );
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -35,27 +37,20 @@ export const ReportWaste: React.FC = () => {
   const [isMapPickerOpen, setIsMapPickerOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const [timestamp, setTimestamp] = useState<string>(new Date().toISOString());
+  const [timestamp] = useState<string>(() => new Date().toISOString());
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const videoUrlRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    setTimestamp(new Date().toISOString());
-
-    // Only auto-capture if location is not yet set
-    if (!location) {
-      captureLocation();
+  const cleanupVideoUrl = () => {
+    if (videoUrlRef.current) {
+      URL.revokeObjectURL(videoUrlRef.current);
+      videoUrlRef.current = null;
     }
+  };
 
-    const pendingCameraPhoto = sessionStorage.getItem('swachhlens_captured_photo');
-    if (pendingCameraPhoto) {
-      setSelectedImage(pendingCameraPhoto);
-      sessionStorage.removeItem('swachhlens_captured_photo');
-    }
-  }, []);
-
-  const captureLocation = async () => {
+  const captureLocation = React.useCallback(async () => {
     setIsDetectingLocation(true);
     setLocationError(null);
     try {
@@ -68,7 +63,32 @@ export const ReportWaste: React.FC = () => {
     } finally {
       setIsDetectingLocation(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    locationService.getCurrentLocation()
+      .then((loc) => {
+        if (isMounted) setLocation(loc);
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          console.warn('Geolocation failed:', err);
+          setLocation(null);
+          setLocationError('Unable to detect GPS location. Please allow location access or select on map.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsDetectingLocation(false);
+      });
+
+    sessionStorage.removeItem('swachhlens_captured_photo');
+
+    return () => {
+      isMounted = false;
+      cleanupVideoUrl();
+    };
+  }, []);
 
   const handleConfirmMapLocation = (chosenLoc: LocationData) => {
     setLocation(chosenLoc);
@@ -81,8 +101,9 @@ export const ReportWaste: React.FC = () => {
     if (file) {
       try {
         const compressedBase64 = await cameraService.compressImageFile(file);
-        setSelectedImage(compressedBase64);
+        cleanupVideoUrl();
         setSelectedVideo(null);
+        setSelectedImage(compressedBase64);
         setMediaError(null);
       } catch (err) {
         console.error('Failed to process image:', err);
@@ -94,10 +115,20 @@ export const ReportWaste: React.FC = () => {
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      cleanupVideoUrl();
       const url = URL.createObjectURL(file);
+      videoUrlRef.current = url;
       setSelectedVideo(url);
       setSelectedImage(null);
       setMediaError(null);
+    }
+  };
+
+  const handleRemoveVideo = () => {
+    cleanupVideoUrl();
+    setSelectedVideo(null);
+    if (videoInputRef.current) {
+      videoInputRef.current.value = '';
     }
   };
 
@@ -212,7 +243,7 @@ export const ReportWaste: React.FC = () => {
                 />
                 <button
                   type="button"
-                  onClick={() => setSelectedVideo(null)}
+                  onClick={handleRemoveVideo}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
                   aria-label="Remove video"
                 >
@@ -300,11 +331,17 @@ export const ReportWaste: React.FC = () => {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block">
-              Description (Optional)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block">
+                Description (Optional)
+              </label>
+              <span className="text-[10px] text-[#64736A] dark:text-[#A9BBB1] font-mono">
+                {description.length} / 500
+              </span>
+            </div>
             <textarea
               rows={3}
+              maxLength={500}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('report.descriptionPlaceholder')}

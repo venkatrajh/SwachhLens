@@ -285,7 +285,8 @@ class TestLogin:
 
         asyncio.run(_deactivate())
         r = _login(client, email=email)
-        assert r.status_code == 401
+        assert r.status_code == 403
+        assert "deactivated" in r.json()["detail"].lower()
 
     def test_login_token_does_not_contain_password(self, client: TestClient) -> None:
         email = _unique_email("nopwintok")
@@ -845,3 +846,165 @@ class TestSecurityHelpers:
         assert len(t1) >= 48
         assert len(t2) >= 48
         assert t1 != t2
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. Google OAuth Authentication
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestGoogleAuth:
+
+    def test_google_login_new_user_success(self, client: TestClient) -> None:
+        resp = client.post(
+            "/api/v1/auth/google",
+            json={"id_token": "mock_google_token:new_google_citizen@example.com:Google Citizen"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert data["expires_in"] > 0
+
+        # Verify profile via /auth/me
+        token = data["access_token"]
+        me_resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_resp.status_code == 200
+        user_data = me_resp.json()
+        assert user_data["email"] == "new_google_citizen@example.com"
+        assert user_data["name"] == "Google Citizen"
+        assert user_data["role"] == "citizen"
+        assert user_data["auth_provider"] == "google"
+        assert user_data["is_verified"] is True
+
+    def test_google_login_existing_unverified_user_auto_verifies(self, client: TestClient) -> None:
+        # Register local user (starts unverified)
+        reg_resp = client.post(
+            "/api/v1/auth/register",
+            json={
+                "name": "Local User",
+                "email": "local_to_google@example.com",
+                "password": "Password123!",
+                "role": "citizen",
+            },
+        )
+        assert reg_resp.status_code == 201
+        assert reg_resp.json()["user"]["is_verified"] is False
+
+        # Google Sign-in with same email
+        resp = client.post(
+            "/api/v1/auth/google",
+            json={"id_token": "mock_google_token:local_to_google@example.com:Local User"},
+        )
+        assert resp.status_code == 200
+        token = resp.json()["access_token"]
+
+        # Confirm user is now verified
+        me_resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_resp.status_code == 200
+        assert me_resp.json()["is_verified"] is True
+
+    def test_google_login_empty_token_rejected(self, client: TestClient) -> None:
+        resp = client.post(
+            "/api/v1/auth/google",
+            json={"id_token": ""},
+        )
+        assert resp.status_code == 422
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. Account Reactivation
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAccountReactivation:
+
+    def test_request_reactivation_success(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("reactivate_req")
+        _register(client, email=email, auto_verify=True)
+
+        async def _deactivate() -> None:
+            async with TestSessionLocal() as s:
+                await s.execute(
+                    update(User).where(User.email == email).values(is_active=False, verification_sent_at=None)
+                )
+                await s.commit()
+
+        asyncio.run(_deactivate())
+
+        # Request reactivation
+        resp = client.post("/api/v1/auth/request-reactivation", json={"email": email})
+        assert resp.status_code == 200
+        assert "reactivation code has been sent" in resp.json()["message"]
+        mock_email.send_reactivation_email.assert_called_once()
+
+    def test_request_reactivation_nonexistent_email_returns_200(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        resp = client.post(
+            "/api/v1/auth/request-reactivation",
+            json={"email": "nonexistent_reactivate@example.com"},
+        )
+        assert resp.status_code == 200
+
+    def test_reactivate_account_success(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("reactivate_ok")
+        _register(client, email=email, auto_verify=True)
+
+        async def _deactivate() -> None:
+            async with TestSessionLocal() as s:
+                await s.execute(
+                    update(User).where(User.email == email).values(is_active=False, verification_sent_at=None)
+                )
+                await s.commit()
+
+        asyncio.run(_deactivate())
+
+        # Request reactivation to generate token
+        client.post("/api/v1/auth/request-reactivation", json={"email": email})
+        token = mock_email.send_reactivation_email.call_args.kwargs["token"]
+
+        # Confirm login is currently blocked with 403
+        login_fail = _login(client, email=email)
+        assert login_fail.status_code == 403
+
+        # Reactivate account
+        reactivate_resp = client.post(
+            "/api/v1/auth/reactivate-account",
+            json={"email": email, "token": token},
+        )
+        assert reactivate_resp.status_code == 200
+        assert "successfully reactivated" in reactivate_resp.json()["message"].lower()
+
+        # Login now succeeds
+        login_ok = _login(client, email=email)
+        assert login_ok.status_code == 200
+        assert "access_token" in login_ok.json()
+
+    def test_reactivate_account_invalid_token_rejected(
+        self, client: TestClient, mock_email: MagicMock
+    ) -> None:
+        email = _unique_email("reactivate_badtok")
+        _register(client, email=email, auto_verify=True)
+
+        async def _deactivate() -> None:
+            async with TestSessionLocal() as s:
+                await s.execute(
+                    update(User).where(User.email == email).values(is_active=False, verification_sent_at=None)
+                )
+                await s.commit()
+
+        asyncio.run(_deactivate())
+
+        client.post("/api/v1/auth/request-reactivation", json={"email": email})
+
+        reactivate_resp = client.post(
+            "/api/v1/auth/reactivate-account",
+            json={"email": email, "token": "999999"},
+        )
+        assert reactivate_resp.status_code == 400
+        assert "invalid" in reactivate_resp.json()["detail"].lower()
+
+

@@ -7,7 +7,8 @@ import {
   Compass,
   Filter,
   Search,
-  ExternalLink
+  ExternalLink,
+  Flame
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -16,9 +17,10 @@ import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 
 export const WasteMap = () => {
-  const { complaints } = useApp();
+  const { complaints, hotspots } = useApp();
   const [filter, setFilter] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [showHotspots, setShowHotspots] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(complaints[0] || null);
   const navigate = useNavigate();
 
@@ -91,6 +93,29 @@ export const WasteMap = () => {
               </button>
             );
           })}
+
+          {/* Hotspots Density Layer Toggle */}
+          <button
+            onClick={() => setShowHotspots(prev => !prev)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: showHotspots ? 600 : 500,
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: showHotspots ? 'rgba(251, 113, 133, 0.15)' : 'var(--surface-secondary)',
+              color: showHotspots ? 'var(--priority-critical)' : 'var(--text-secondary)',
+              border: showHotspots ? '1px solid var(--priority-critical)' : '1px solid var(--border-subtle)',
+              boxShadow: showHotspots ? '0 2px 10px rgba(251, 113, 133, 0.25)' : 'none',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)'
+            }}
+          >
+            <Flame size={13} style={{ color: showHotspots ? 'var(--priority-critical)' : 'var(--text-muted)' }} />
+            <span>Hotspots ({hotspots ? hotspots.length : 0})</span>
+          </button>
         </div>
 
         {/* Search Input on Map */}
@@ -124,6 +149,8 @@ export const WasteMap = () => {
       <div style={{ position: 'relative', height: '580px', width: '100%' }}>
         <InteractiveWasteMap
           complaints={filteredComplaints}
+          hotspots={hotspots || []}
+          showHotspots={showHotspots}
           selectedId={selectedComplaint?.id}
           onSelectComplaint={(c) => setSelectedComplaint(c)}
           height="100%"
@@ -166,6 +193,12 @@ export const WasteMap = () => {
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--status-completed)' }} />
             Low (&lt;4.0)
           </span>
+          {showHotspots && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: 'var(--text-secondary)' }}>
+              <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '1.5px dashed var(--priority-critical)', backgroundColor: 'rgba(251, 113, 133, 0.25)' }} />
+              Hotspot Zone (~250m)
+            </span>
+          )}
         </div>
 
         {/* Selected Incident Drawer (Level 3 Floating Liquid Glass - Bottom Right) */}

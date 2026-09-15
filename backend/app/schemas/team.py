@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class TeamBase(BaseModel):
     name: str = Field(..., max_length=100)
-    category: str = Field(..., max_length=50)
+    category: str | None = Field(default=None, max_length=50)
     active: bool = True
 
 

@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_active_user, require_roles
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import UpdateProfileRequest, UserResponse
+from app.schemas.auth import MessageResponse, UpdateProfileRequest, UserResponse
 from app.services import auth as auth_service
 
 logger = logging.getLogger(__name__)
@@ -55,6 +55,20 @@ async def update_me(
     """Update current user's profile information (name, phone, ward, department, avatar_url)."""
     updated_user = await auth_service.update_user_profile(db, current_user, payload)
     return UserResponse.model_validate(updated_user)
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    summary="Delete / deactivate current user account",
+)
+async def delete_me(
+    current_user: Annotated[User, Depends(require_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MessageResponse:
+    """Safely deactivate current user's account and invalidate sessions."""
+    await auth_service.deactivate_or_delete_user(db, current_user)
+    return MessageResponse(message="Account successfully deleted.")
 
 
 @router.get(

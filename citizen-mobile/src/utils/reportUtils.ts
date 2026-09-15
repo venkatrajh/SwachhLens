@@ -51,3 +51,23 @@ export function formatLocation(
     secondary: '',
   };
 }
+
+/**
+ * Resolves local/relative media URLs (e.g. /media/...) to full backend URLs.
+ * Preserves external http(s) and data URI strings untouched.
+ */
+export function resolveImageUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/media/')) {
+    return `http://localhost:8000${trimmed}`;
+  }
+  if (trimmed.startsWith('media/')) {
+    return `http://localhost:8000/${trimmed}`;
+  }
+  return trimmed;
+}
+

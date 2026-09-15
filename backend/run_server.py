@@ -10,4 +10,4 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, loop="asyncio")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, loop="asyncio")

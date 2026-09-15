@@ -103,3 +103,79 @@ export function adaptRecyclablePercent(complaints) {
   const recyclableCount = complaints.filter(c => c.isRecyclable === true).length;
   return Math.round((recyclableCount / complaints.length) * 100);
 }
+
+/** Adapt backend /analytics/summary response to Dashboard/Operations KPI structure */
+export function adaptBackendSummaryKPIs(summary) {
+  if (!summary) return null;
+  const sc = summary.status_counts || {};
+  const pc = summary.priority_counts || {};
+  return {
+    totalReports: summary.total_reports || 0,
+    pending: (sc.pending || 0) + (sc.analyzing || 0),
+    highPriority: pc.high || 0,
+    critical: pc.critical || 0,
+    inProgress: (sc.assigned || 0) + (sc.in_progress || 0),
+    completed: (sc.completed || 0) + (sc.verified || 0),
+  };
+}
+
+/** Adapt backend /analytics/summary waste_type_counts: [{ type, count, percent }] */
+export function adaptBackendWasteDistribution(summary) {
+  if (!summary || !summary.waste_type_counts) return [];
+  const counts = summary.waste_type_counts;
+  const total = summary.total_reports || 0;
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => ({
+      type,
+      count,
+      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    }));
+}
+
+/** Adapt backend /analytics/summary priority_counts: [{ priority, count, color }] */
+export function adaptBackendPriorityDistribution(summary) {
+  const ORDER = ['critical', 'high', 'medium', 'low'];
+  const counts = (summary && summary.priority_counts) || {};
+  return ORDER.map(p => ({
+    priority: p.charAt(0).toUpperCase() + p.slice(1),
+    count: counts[p] || 0,
+    color: PRIORITY_COLORS[p],
+  }));
+}
+
+/** Adapt backend /analytics/trends response: [{ day, dateStr, reports, resolved }] */
+export function adaptBackendTrends(trendsResp) {
+  if (!trendsResp || !Array.isArray(trendsResp.trends) || trendsResp.trends.length === 0) {
+    return [];
+  }
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const isMultiWeek = trendsResp.trends.length > 7;
+
+  return trendsResp.trends.map(t => {
+    let dayLabel = t.date_label;
+    try {
+      const parsed = new Date(t.date_label);
+      if (!isNaN(parsed.getTime())) {
+        if (isMultiWeek) {
+          // Format as "Sep 5" using UTC date components to prevent timezone-shift bugs
+          const month = MONTH_NAMES[parsed.getUTCMonth()];
+          const day = parsed.getUTCDate();
+          dayLabel = `${month} ${day}`;
+        } else {
+          dayLabel = DAY_NAMES[parsed.getUTCDay()] || t.date_label.slice(5);
+        }
+      }
+    } catch {
+      dayLabel = t.date_label;
+    }
+    return {
+      day: dayLabel,
+      dateStr: t.date_label,
+      reports: t.submitted_count || 0,
+      resolved: t.completed_count || 0,
+    };
+  });
+}
+

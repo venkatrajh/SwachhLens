@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,7 +10,8 @@ import {
   FileCheck,
   Zap,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PageContainer } from '../components/layout/PageContainer';
@@ -21,28 +22,58 @@ import { Button } from '../components/ui/Button';
 import { Timeline } from '../components/ui/Timeline';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
+import { adaptTimelineHistory, buildOperationalTimeline } from '../services/reportsAdapter';
 
 export const ComplaintDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { 
-    getComplaintById, 
+    getComplaintById,
+    getReportHistory,
     assignTeam, 
     assignVehicle, 
     updateStatus,
     resolveReport,
     verifyCleanup,
+    rejectCleanup,
     teams,
     vehicles
   } = useApp();
 
   const complaint = getComplaintById(id);
 
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (complaint?.id) {
+      getReportHistory(complaint.id).then(data => {
+        if (isMounted) setHistory(data || []);
+      });
+    }
+    return () => { isMounted = false; };
+  }, [complaint?.id, complaint?.rawStatus, complaint?.progress]);
+
   // Modal states for Team & Vehicle assignment
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState('');
+  const [assignmentError, setAssignmentError] = useState(null);
+
+  // Modal states for Resolution
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [resolveImageFile, setResolveImageFile] = useState(null);
+  const [resolveImagePreview, setResolveImagePreview] = useState(null);
+  const [resolveNotes, setResolveNotes] = useState('');
+  const [resolveError, setResolveError] = useState(null);
+
+  // Modal states for Rejection / Re-clean
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('Insufficient site clearance — waste remnants remain on site');
+  const [customReason, setCustomReason] = useState('');
+  const [rejectError, setRejectError] = useState(null);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   if (!complaint) {
     return (
@@ -61,15 +92,6 @@ export const ComplaintDetails = () => {
       </PageContainer>
     );
   }
-
-  const [assignmentError, setAssignmentError] = useState(null);
-
-  // Modal states for Resolution
-  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
-  const [resolveImageFile, setResolveImageFile] = useState(null);
-  const [resolveImagePreview, setResolveImagePreview] = useState(null);
-  const [resolveNotes, setResolveNotes] = useState('');
-  const [resolveError, setResolveError] = useState(null);
 
   const handleResolveReport = async () => {
     if (!resolveImageFile) {
@@ -94,6 +116,21 @@ export const ComplaintDetails = () => {
       setResolveNotes('');
     } catch (error) {
       setResolveError(error.response?.data?.detail || "Failed to submit evidence. Please try again.");
+    }
+  };
+
+  const handleRejectCleanup = async () => {
+    try {
+      setIsRejecting(true);
+      setRejectError(null);
+      const reasonToUse = rejectReason === 'OTHER' ? (customReason.trim() || 'Evidence rejected by municipal officer') : rejectReason;
+      await rejectCleanup(complaint.id, reasonToUse);
+      setIsRejectModalOpen(false);
+      setCustomReason('');
+    } catch (error) {
+      setRejectError(error.response?.data?.detail || "Failed to reject evidence. Please try again.");
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -126,11 +163,12 @@ export const ComplaintDetails = () => {
     const vehicleId = selectedVehicle || complaint.assignedVehicle;
 
     if (!teamId || !vehicleId) {
-      alert("Please assign both a Team and a Vehicle before dispatching.");
+      setAssignmentError("Please assign both a Team and a Vehicle before dispatching.");
       return;
     }
 
     try {
+      setAssignmentError(null);
       if (selectedTeam && selectedTeam !== complaint.assignedTeam) {
         await assignTeam(complaint.id, selectedTeam);
       }
@@ -142,7 +180,7 @@ export const ComplaintDetails = () => {
       }
       navigate('/operations');
     } catch (error) {
-      alert(error.response?.data?.detail || "Failed to dispatch all. Please try again.");
+      setAssignmentError(error.response?.data?.detail || "Failed to dispatch all. Please try again.");
     }
   };
 
@@ -215,7 +253,7 @@ export const ComplaintDetails = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
           gap: '20px'
         }}
       >
@@ -226,7 +264,8 @@ export const ComplaintDetails = () => {
             <GlassImage
               src={complaint.beforeImage}
               alt={`Waste Evidence for ${complaint.displayId || complaint.id}`}
-              height="280px"
+              height="320px"
+              objectFit="contain"
               label={`Incident Capture — ${complaint.wasteType}`}
               caption={complaint.latitude != null && complaint.longitude != null ? `LAT: ${Number(complaint.latitude).toFixed(5)}° N | LNG: ${Number(complaint.longitude).toFixed(5)}° E • ${complaint.location}` : complaint.location}
             />
@@ -259,16 +298,17 @@ export const ComplaintDetails = () => {
               <GlassImage
                 src={complaint.afterImage}
                 alt={`Clearance Evidence for ${complaint.displayId || complaint.id}`}
-                height="280px"
+                height="320px"
+                objectFit="contain"
                 label="AFTER — Crew Clearance Photo"
                 caption={`Cleared Site Verification • ${complaint.location}`}
               />
             </Card>
           )}
 
-          {/* Cleanup Progress Timeline */}
-          <Card level="2" title="Resolution Timeline" subtitle="End-to-end incident operational lifecycle">
-            <Timeline steps={complaint.timelineSteps} />
+          {/* Incident Audit History */}
+          <Card level="2" title="Incident Audit Log" subtitle="Recorded chronological operational event history">
+            <Timeline steps={adaptTimelineHistory(history, complaint)} />
           </Card>
         </div>
 
@@ -429,6 +469,24 @@ export const ComplaintDetails = () => {
                 );
               })()}
 
+              {/* Assignment Error Message */}
+              {assignmentError && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    backgroundColor: 'var(--status-critical-bg)',
+                    color: 'var(--status-critical-text)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: '1px solid var(--border-subtle)',
+                    marginTop: '8px'
+                  }}
+                >
+                  {assignmentError}
+                </div>
+              )}
+
               {/* Action triggers */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                 <Button
@@ -452,20 +510,7 @@ export const ComplaintDetails = () => {
 
               {/* Operational Lifecycle Transition Actions */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Operational Lifecycle Controls:
-                </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {complaint.rawStatus === 'pending' && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => updateStatus(complaint.id, 'analyzing', 'Officer initiated incident triage')}
-                      icon={Sparkles}
-                    >
-                      Start Incident Triage (Analyzing)
-                    </Button>
-                  )}
                   {complaint.rawStatus === 'assigned' && (
                     <Button
                       variant="primary"
@@ -487,14 +532,27 @@ export const ComplaintDetails = () => {
                     </Button>
                   )}
                   {complaint.rawStatus === 'completed' && (
-                    <Button
-                      variant="success"
-                      size="sm"
-                      onClick={() => verifyCleanup(complaint.id)}
-                      icon={ShieldCheck}
-                    >
-                      Verify Site Clearance
-                    </Button>
+                    <>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => {
+                          setRejectError(null);
+                          setIsRejectModalOpen(true);
+                        }}
+                        icon={RotateCcw}
+                      >
+                        Reject Evidence / Re-Clean
+                      </Button>
+                      <Button
+                        variant="success"
+                        size="sm"
+                        onClick={() => verifyCleanup(complaint.id)}
+                        icon={ShieldCheck}
+                      >
+                        Verify Site Clearance
+                      </Button>
+                    </>
                   )}
                   {complaint.rawStatus === 'verified' && (
                     <Badge variant="success" dot>
@@ -504,6 +562,15 @@ export const ComplaintDetails = () => {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* RESOLUTION TIMELINE */}
+          <Card
+            level="2"
+            title="Resolution Timeline"
+            subtitle="End to end operational lifecycle"
+          >
+            <Timeline steps={buildOperationalTimeline(complaint, history)} orientation="horizontal" />
           </Card>
         </div>
       </div>
@@ -639,6 +706,73 @@ export const ComplaintDetails = () => {
               style={{ width: '100%', padding: '12px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-primary)', color: 'var(--text-primary)', resize: 'vertical' }}
             />
           </div>
+        </div>
+      </Modal>
+
+      {/* REJECT EVIDENCE MODAL */}
+      <Modal
+        isOpen={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        title="Reject Cleanup Evidence"
+        subtitle={`Request field re-cleanup for ${complaint.displayId || complaint.id}`}
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setIsRejectModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleRejectCleanup} disabled={isRejecting}>
+              {isRejecting ? "Processing..." : "Confirm Rejection & Request Re-Clean"}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {rejectError && (
+            <div style={{ padding: '12px', backgroundColor: 'var(--status-critical-bg)', color: 'var(--status-critical-text)', borderRadius: 'var(--radius-md)', fontSize: '13px', fontWeight: 600 }}>
+              {rejectError}
+            </div>
+          )}
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Rejecting this cleanup evidence transitions the incident back to <strong>In Progress</strong>. The field crew must perform re-cleanup and upload new photographic proof.
+          </p>
+
+          <Select
+            label="Rejection Reason"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            options={[
+              { value: "Insufficient site clearance — waste remnants remain on site", label: "Insufficient clearance / waste remnants remain" },
+              { value: "After-photo unclear or does not match geotag location", label: "After-photo unclear or location mismatch" },
+              { value: "Incomplete cleanup — hazardous materials still present", label: "Hazardous or bulky waste left behind" },
+              { value: "OTHER", label: "Other (specify custom reason below)" }
+            ]}
+          />
+
+          {rejectReason === 'OTHER' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Custom Rejection Notes
+              </label>
+              <textarea
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="Explain why the cleanup evidence is being rejected..."
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--surface-secondary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
         </div>
       </Modal>
     </PageContainer>

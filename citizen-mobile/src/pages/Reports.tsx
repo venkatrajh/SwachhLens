@@ -18,7 +18,6 @@ export const Reports: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchReports = async () => {
-    setIsLoading(true);
     setError(null);
     try {
       const data = await apiService.getMyReports();
@@ -34,7 +33,26 @@ export const Reports: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchReports();
+    let isMounted = true;
+    apiService.getMyReports()
+      .then((data) => {
+        if (isMounted) setReports(data);
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          console.error('Failed to fetch reports:', err);
+          setError(
+            err.response?.data?.detail || 'Failed to retrieve reports from server. Please try again.'
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filteredReports = reports.filter((r) => {

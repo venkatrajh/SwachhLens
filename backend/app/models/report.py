@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -147,6 +148,11 @@ class Report(Base):
     confidence: Mapped[float] = mapped_column(
         Float, nullable=False, server_default="0"
     )
+
+    # ── Local CV Perception Provenance (EXP_02 MobileNetV3-Large) ─────────────
+    cv_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cv_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cv_probabilities: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # ── Duplicate detection ───────────────────────────────────────────────────
     duplicate: Mapped[bool] = mapped_column(

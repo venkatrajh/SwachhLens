@@ -567,11 +567,13 @@ class TestStatusWorkflow:
             assert r.status_code == 200, f"Failed {new_status}: {r.json()}"
             assert r.json()["status"] == new_status
 
-        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
         r = client.post(
             f"/api/v1/reports/{rid}/resolve",
-            data={"resolution_notes": "All clean"},
-            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            json={
+                "after_image_url": valid_b64,
+                "resolution_notes": "All clean",
+            },
             headers=_auth(officer_tok),
         )
         assert r.status_code == 200, f"Failed resolve: {r.json()}"
@@ -613,11 +615,13 @@ class TestStatusWorkflow:
                 json={"new_status": s},
                 headers=_auth(officer_tok),
             )
-        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
         client.post(
             f"/api/v1/reports/{rid}/resolve",
-            data={"resolution_notes": "Cleaned"},
-            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            json={
+                "after_image_url": valid_b64,
+                "resolution_notes": "Cleaned",
+            },
             headers=_auth(officer_tok),
         )
         client.post(
@@ -769,11 +773,13 @@ class TestStatusWorkflow:
                 json={"new_status": s},
                 headers=_auth(officer_tok),
             )
-        valid_jpeg = b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xD9"
+        valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
         client.post(
             f"/api/v1/reports/{rid}/resolve",
-            data={"resolution_notes": "Cleaned"},
-            files={"image": ("clean.jpg", valid_jpeg, "image/jpeg")},
+            json={
+                "after_image_url": valid_b64,
+                "resolution_notes": "Cleaned",
+            },
             headers=_auth(officer_tok),
         )
         client.post(
@@ -783,6 +789,106 @@ class TestStatusWorkflow:
         )
         report = client.get(f"/api/v1/reports/{rid}", headers=_auth(officer_tok))
         assert report.json()["verified_at"] is not None
+
+    def test_evidence_rejection_workflow(self, client: TestClient) -> None:
+        """completed -> in_progress (officer rejects evidence with reason)"""
+        _, citizen_tok = _create_user_directly(role="citizen")
+        _, officer_tok = _create_user_directly(role="officer")
+        body = _create_report_via_api(client, citizen_tok)
+        rid = body["id"]
+        for s in ["analyzing", "assigned", "in_progress"]:
+            client.post(
+                f"/api/v1/reports/{rid}/status",
+                json={"new_status": s},
+                headers=_auth(officer_tok),
+            )
+        valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
+        r_res = client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            json={
+                "after_image_url": valid_b64,
+                "resolution_notes": "First cleanup attempt",
+            },
+            headers=_auth(officer_tok),
+        )
+        assert r_res.status_code == 200
+        assert r_res.json()["status"] == "completed"
+
+        # Officer rejects cleanup evidence
+        rejection_reason = "Insufficient site clearance - waste remnants remain on site"
+        r_rej = client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "in_progress", "label": f"Evidence rejected: {rejection_reason}"},
+            headers=_auth(officer_tok),
+        )
+        assert r_rej.status_code == 200
+        assert r_rej.json()["status"] == "in_progress"
+
+        # Fetch report to verify progress was updated to 50
+        rep_after_rej = client.get(f"/api/v1/reports/{rid}", headers=_auth(officer_tok)).json()
+        assert rep_after_rej["status"] == "in_progress"
+        assert rep_after_rej["progress"] == 50
+
+        # Check status history
+        r_hist = client.get(f"/api/v1/reports/{rid}/history", headers=_auth(officer_tok))
+        history = r_hist.json()
+        assert any("Evidence rejected" in (h.get("label") or "") for h in history)
+
+        # Check citizen received notification
+        r_notif = client.get("/api/v1/notifications", headers=_auth(citizen_tok))
+        assert r_notif.status_code == 200
+        notifs = r_notif.json()["items"]
+        assert any(n["event_type"] == "evidence_rejected" or "Rejected" in n["title"] for n in notifs)
+
+    def test_recleanup_and_reverification_cycle(self, client: TestClient) -> None:
+        """Full re-cleanup loop: in_progress -> completed -> in_progress -> completed -> verified"""
+        _, citizen_tok = _create_user_directly(role="citizen")
+        _, officer_tok = _create_user_directly(role="officer")
+        body = _create_report_via_api(client, citizen_tok)
+        rid = body["id"]
+        for s in ["analyzing", "assigned", "in_progress"]:
+            client.post(
+                f"/api/v1/reports/{rid}/status",
+                json={"new_status": s},
+                headers=_auth(officer_tok),
+            )
+        valid_b64_1 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
+        client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            json={"after_image_url": valid_b64_1, "resolution_notes": "Attempt 1"},
+            headers=_auth(officer_tok),
+        )
+        # Reject
+        client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "in_progress", "label": "Evidence rejected: Photo unclear"},
+            headers=_auth(officer_tok),
+        )
+        # Re-resolve with new evidence
+        valid_b64_2 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD//g=="
+        r_res2 = client.post(
+            f"/api/v1/reports/{rid}/resolve",
+            json={"after_image_url": valid_b64_2, "resolution_notes": "Attempt 2 - thoroughly cleared"},
+            headers=_auth(officer_tok),
+        )
+        assert r_res2.status_code == 200
+        assert r_res2.json()["status"] == "completed"
+
+        # Verify
+        r_ver = client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": "verified"},
+            headers=_auth(officer_tok),
+        )
+        assert r_ver.status_code == 200
+        assert r_ver.json()["status"] == "verified"
+
+        # Fetch report to verify verified_at and progress = 100
+        rep_final = client.get(f"/api/v1/reports/{rid}", headers=_auth(officer_tok)).json()
+        assert rep_final["status"] == "verified"
+        assert rep_final["progress"] == 100
+        assert rep_final["verified_at"] is not None
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

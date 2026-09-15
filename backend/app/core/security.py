@@ -30,9 +30,15 @@ def hash_password(plaintext: str) -> str:
     return _pwd_context.hash(plaintext)
 
 
-def verify_password(plaintext: str, hashed: str) -> bool:
-    """Return True if plaintext matches the bcrypt hash."""
-    return _pwd_context.verify(plaintext, hashed)
+def verify_password(plaintext: str, hashed: str | None) -> bool:
+    """Return True if plaintext matches the bcrypt hash. Safely handles malformed hashes."""
+    if not hashed or not isinstance(hashed, str) or not hashed.startswith("$2"):
+        return False
+    try:
+        return _pwd_context.verify(plaintext, hashed)
+    except Exception as exc:
+        logger.warning("Safely handled invalid password hash verification: %s", exc)
+        return False
 
 
 # ── Verification & Reset Tokens (Deterministic SHA-256) ──────────────────────

@@ -13,6 +13,7 @@ from tests.test_reports import (
     create_test_tables,
     _auth,
     _create_user_directly,
+    _create_report_via_api,
     TestSessionLocal
 )
 
@@ -104,3 +105,57 @@ def test_mark_read_not_found_or_forbidden(client: TestClient) -> None:
         headers=_auth(officer_token)
     )
     assert response.status_code == 404
+
+
+def test_resolve_creates_municipal_verification_notification(client: TestClient) -> None:
+    """When a report is resolved with genuine evidence, municipal officers receive a verification_required notification."""
+    citizen_id, citizen_tok = _create_user_directly(role="citizen", name="Citizen Reporter")
+    officer_id, officer_tok = _create_user_directly(role="officer", name="Municipal Officer")
+    commissioner_id, comm_tok = _create_user_directly(role="commissioner", name="Commissioner")
+
+    # 1. Citizen creates report
+    body = _create_report_via_api(client, citizen_tok)
+    rid = body["id"]
+
+    # 2. Advance to in_progress
+    for s in ["analyzing", "assigned", "in_progress"]:
+        r = client.post(
+            f"/api/v1/reports/{rid}/status",
+            json={"new_status": s},
+            headers=_auth(officer_tok),
+        )
+        assert r.status_code == 200
+
+    # 3. Resolve report with genuine image evidence
+    valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD//g=="
+    resolve_res = client.post(
+        f"/api/v1/reports/{rid}/resolve",
+        json={
+            "after_image_url": valid_b64,
+            "resolution_notes": "Site thoroughly cleared by response team.",
+        },
+        headers=_auth(officer_tok),
+    )
+    assert resolve_res.status_code == 200
+
+    # 4. Check Citizen Notification (report_resolved)
+    cit_notifs = client.get("/api/v1/notifications", headers=_auth(citizen_tok)).json()["items"]
+    cit_resolved_notifs = [n for n in cit_notifs if n["event_type"] == "report_resolved"]
+    assert len(cit_resolved_notifs) >= 1
+    assert cit_resolved_notifs[0]["report_id"] == rid
+    assert "resolved" in cit_resolved_notifs[0]["title"].lower()
+
+    # 5. Check Officer Notification (verification_required)
+    off_notifs = client.get("/api/v1/notifications", headers=_auth(officer_tok)).json()["items"]
+    off_verif_notifs = [n for n in off_notifs if n["event_type"] == "verification_required"]
+    assert len(off_verif_notifs) == 1
+    assert off_verif_notifs[0]["report_id"] == rid
+    assert off_verif_notifs[0]["title"] == "Cleanup Verification Required"
+    assert "verification required" in off_verif_notifs[0]["message"].lower()
+
+    # 6. Check Commissioner Notification (verification_required)
+    comm_notifs = client.get("/api/v1/notifications", headers=_auth(comm_tok)).json()["items"]
+    comm_verif_notifs = [n for n in comm_notifs if n["event_type"] == "verification_required"]
+    assert len(comm_verif_notifs) == 1
+    assert comm_verif_notifs[0]["report_id"] == rid
+

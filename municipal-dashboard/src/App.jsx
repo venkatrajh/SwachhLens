@@ -6,6 +6,7 @@ import { AppProvider } from './context/AppContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Login } from './pages/Login';
+import { Landing } from './pages/Landing';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
@@ -33,6 +34,7 @@ export const App = () => {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<AuthEntranceRoute />} />
+              <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<AuthEntranceRoute />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />

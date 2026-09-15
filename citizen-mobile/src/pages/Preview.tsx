@@ -13,33 +13,49 @@ export const Preview: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [pendingPayload, setPendingPayload] = useState<SubmitReportPayload | null>(null);
-  const [location, setLocation] = useState<LocationData | null>(null);
+  const [pendingPayload] = useState<SubmitReportPayload | null>(() => {
+    const raw = sessionStorage.getItem('swachhlens_pending_report');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as SubmitReportPayload;
+    } catch {
+      return null;
+    }
+  });
+  const [location, setLocation] = useState<LocationData | null>(() => {
+    const raw = sessionStorage.getItem('swachhlens_pending_report');
+    if (!raw) return null;
+    try {
+      const payload: SubmitReportPayload = JSON.parse(raw);
+      return {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        source: 'current',
+      };
+    } catch {
+      return null;
+    }
+  });
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
-  const [description, setDescription] = useState<string>('');
+  const [description, setDescription] = useState<string>(() => {
+    const raw = sessionStorage.getItem('swachhlens_pending_report');
+    if (!raw) return '';
+    try {
+      const payload: SubmitReportPayload = JSON.parse(raw);
+      return payload.description || '';
+    } catch {
+      return '';
+    }
+  });
   const [isMapPickerOpen, setIsMapPickerOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('swachhlens_pending_report');
-    if (!raw) {
-      navigate('/report');
-      return;
-    }
-    try {
-      const payload: SubmitReportPayload = JSON.parse(raw);
-      setPendingPayload(payload);
-      setDescription(payload.description || '');
-      setLocation({
-        latitude: payload.latitude,
-        longitude: payload.longitude,
-        source: 'current',
-      });
-    } catch {
+    if (!pendingPayload) {
       navigate('/report');
     }
-  }, [navigate]);
+  }, [pendingPayload, navigate]);
 
   const handleConfirmMapLocation = (chosenLoc: LocationData) => {
     setLocation(chosenLoc);

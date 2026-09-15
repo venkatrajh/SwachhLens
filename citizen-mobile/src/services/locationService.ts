@@ -1,8 +1,15 @@
 import type { LocationData } from '../types/report';
 
+/**
+ * Service for acquiring device geolocation coordinates and formatting location displays.
+ */
 export const locationService = {
   /**
-   * Request real browser GPS coordinates
+   * Request high-accuracy GPS coordinates from the browser's Geolocation API.
+   *
+   * @returns Promise resolving to a standardized LocationData object.
+   * @throws GeolocationPositionError if permission is denied, position is unavailable, or request times out.
+   * @throws Error if Geolocation API is not supported by the browser.
    */
   getCurrentLocation(): Promise<LocationData> {
     return new Promise((resolve, reject) => {
@@ -36,7 +43,10 @@ export const locationService = {
   },
 
   /**
-   * Approximate human-readable locality name for civic display
+   * Format location data into a concise, human-readable coordinate or address string.
+   *
+   * @param loc - LocationData object containing coordinates, address, and source.
+   * @returns Formatted string representation for civic display.
    */
   formatLocationLabel(loc: LocationData): string {
     if (loc.address) return loc.address;

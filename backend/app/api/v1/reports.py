@@ -514,15 +514,28 @@ async def change_status(
         comm_res = await db.execute(select(User.id).where(User.role == "commissioner"))
         notify_ids.extend(comm_res.scalars().all())
 
+    event_type = "status_changed"
+    title = f"Report Status Updated: {payload.new_status}"
+    message = f"Your report status has been updated to {payload.new_status}."
+
+    if payload.new_status == "in_progress" and payload.label and "reject" in payload.label.lower():
+        event_type = "evidence_rejected"
+        title = "Cleanup Evidence Rejected — Re-cleanup In Progress"
+        message = f"Cleanup evidence for report #{report.id} was rejected ({payload.label}). Field crew is performing re-cleanup."
+    elif payload.new_status == "verified":
+        event_type = "report_verified"
+        title = "Report Verified & Certified"
+        message = f"Your report #{report.id} has been officially verified by municipal authorities."
+
     await _notify_users(
         db=db,
         background_tasks=background_tasks,
         email_svc=email_svc,
         user_ids=list(set(notify_ids)),
         report_id=report.id,
-        event_type="status_changed",
-        title=f"Report Status Updated: {payload.new_status}",
-        message=f"Your report status has been updated to {payload.new_status}.",
+        event_type=event_type,
+        title=title,
+        message=message,
     )
     await db.commit()
     await db.refresh(history)
@@ -619,7 +632,9 @@ async def resolve_report(
         )
 
     after_image_url = payload.after_image_url.strip()
-    if after_image_url.startswith("data:image/"):
+    if after_image_url.startswith("data:image/") or not (
+        after_image_url.startswith("http://") or after_image_url.startswith("https://") or after_image_url.startswith("/media/") or after_image_url.startswith("media/")
+    ):
         try:
             img_bytes, _ = storage_service.decode_base64_image(after_image_url)
             after_image_url = await storage_service.store_evidence(
@@ -636,6 +651,15 @@ async def resolve_report(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Failed to store after-image evidence.",
             )
+    elif storage_service.is_application_storage_url(after_image_url):
+        # Valid application-managed storage URL
+        pass
+    else:
+        # Untrusted external URL
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External or unmanaged image URLs are not permitted as cleanup evidence. Please upload genuine image evidence.",
+        )
 
     try:
         history = await report_service.resolve_report(
@@ -649,6 +673,7 @@ async def resolve_report(
             detail=str(exc),
         )
     
+    # 1. Notify Citizen Reporter
     await _notify_users(
         db=db,
         background_tasks=background_tasks,
@@ -659,6 +684,22 @@ async def resolve_report(
         title="Report Resolved",
         message="Your report has been resolved and is pending final verification.",
     )
+
+    # 2. Notify Municipal Officers & Commissioners for Verification Queue
+    officers_res = await db.execute(select(User.id).where(User.role.in_(["officer", "commissioner"])))
+    officer_ids = officers_res.scalars().all()
+    if officer_ids:
+        await _notify_users(
+            db=db,
+            background_tasks=background_tasks,
+            email_svc=email_svc,
+            user_ids=list(officer_ids),
+            report_id=report.id,
+            event_type="verification_required",
+            title="Cleanup Verification Required",
+            message=f"Cleanup evidence has been submitted for report #{report.id}. Verification required.",
+        )
+
     await db.commit()
     await db.refresh(history)
 

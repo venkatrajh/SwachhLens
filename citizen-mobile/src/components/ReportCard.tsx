@@ -4,7 +4,7 @@ import type { Report } from '../types/report';
 import { PriorityBadge } from './ui/PriorityBadge';
 import { StatusBadge } from './ui/StatusBadge';
 import { ChevronRight, Image as ImageIcon, MapPin } from 'lucide-react';
-import { formatReportId } from '../utils/reportUtils';
+import { formatReportId, resolveImageUrl } from '../utils/reportUtils';
 
 interface ReportCardProps {
   report: Report;
@@ -30,15 +30,17 @@ export const ReportCard: React.FC<ReportCardProps> = ({ report }) => {
     }
   })();
 
+  const displayImage = resolveImageUrl(report.image_url);
+
   return (
     <div
       onClick={() => navigate(`/reports/${report.id}`)}
       className="bg-white dark:bg-[#14221B] rounded-2xl p-3.5 border border-[#DCE7E1] dark:border-[#294037] shadow-card hover:shadow-md transition-all active:scale-[0.99] cursor-pointer flex gap-3 items-center group"
     >
       <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#F7FAF8] dark:bg-[#0D1712] flex-shrink-0 border border-[#DCE7E1]/80 dark:border-[#294037]">
-        {report.image_url ? (
+        {displayImage ? (
           <img
-            src={report.image_url}
+            src={displayImage}
             alt={report.waste_type}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"

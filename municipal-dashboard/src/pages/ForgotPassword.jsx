@@ -176,7 +176,7 @@ export const ForgotPassword = () => {
               <Input
                 label="Registered Municipal Email"
                 type="email"
-                placeholder="officer@chennaicorporation.gov.in"
+                placeholder="Enter official municipal email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -354,3 +354,43 @@ class TestReportStorageIntegration:
         assert report_body["status"] == "completed"
         assert report_body["after_image_url"].startswith(f"/media/reports/{report_id}/after/")
         assert report_body["after_image_url"].endswith(".jpg")
+
+    def test_resolve_with_arbitrary_external_url_rejected(self, client: TestClient):
+        _, citizen_token = _create_user_directly("citizen")
+        _, officer_token = _create_user_directly("officer")
+
+        res = client.post(
+            "/api/v1/reports",
+            json={"latitude": 28.6139, "longitude": 77.2090, "description": "Resolve rejection test"},
+            headers=_auth_headers(citizen_token),
+        )
+        assert res.status_code == 201
+        report_id = res.json()["id"]
+
+        for s in ["analyzing", "assigned", "in_progress"]:
+            client.post(
+                f"/api/v1/reports/{report_id}/status",
+                json={"new_status": s},
+                headers=_auth_headers(officer_token),
+            )
+
+        # Attempt to resolve with arbitrary external URL
+        resolve_res = client.post(
+            f"/api/v1/reports/{report_id}/resolve",
+            json={
+                "after_image_url": "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b",
+                "resolution_notes": "Fake external photo",
+            },
+            headers=_auth_headers(officer_token),
+        )
+        assert resolve_res.status_code == 400
+        assert "External or unmanaged image URLs are not permitted" in resolve_res.json()["detail"]
+
+    def test_is_application_storage_url_unit(self):
+        assert storage_service.is_application_storage_url("/media/reports/123/after/img.jpg") is True
+        assert storage_service.is_application_storage_url("media/reports/123/after/img.jpg") is True
+        assert storage_service.is_application_storage_url("https://images.unsplash.com/photo-123") is False
+        assert storage_service.is_application_storage_url("http://evil.com/fake.png") is False
+        assert storage_service.is_application_storage_url(None) is False
+        assert storage_service.is_application_storage_url("") is False
+

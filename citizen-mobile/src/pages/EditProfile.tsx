@@ -5,7 +5,8 @@ import { TopHeader } from '../components/layout/TopHeader';
 import { NatureBackground } from '../components/layout/NatureBackground';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { User, Mail, Phone, MapPin, CheckCircle2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
+import { LocationPicker } from '../components/common/LocationPicker';
+import { User, Mail, Phone, CheckCircle2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 
 export const EditProfile: React.FC = () => {
   const { t } = useTranslation();
@@ -126,19 +127,10 @@ export const EditProfile: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#17211B] dark:text-[#F2F7F4] uppercase tracking-wider block mb-1">
-                {t('profile.ward', 'Ward / Locality')}
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64736A] dark:text-[#A9BBB1]" />
-                <input
-                  type="text"
-                  value={ward}
-                  onChange={(e) => setWard(e.target.value)}
-                  placeholder="e.g. Ward 117 - Central Zone"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#14221B] border border-[#DCE7E1] dark:border-[#294037] text-sm text-[#17211B] dark:text-[#F2F7F4] focus:outline-none focus:ring-2 focus:ring-[#168A5B]/40 dark:focus:ring-[#39B77A]/40 focus:border-[#168A5B] shadow-xs"
-                />
-              </div>
+              <LocationPicker
+                value={ward}
+                onChange={(selectedWard) => setWard(selectedWard)}
+              />
             </div>
           </div>
 

@@ -11,18 +11,25 @@ import {
   User,
   Settings,
   Sun,
-  Moon
+  Moon,
+  Mail,
+  MapPin,
+  CheckCircle2,
+  Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../services/api';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 
 export const FloatingNavbar = () => {
   const { isNavbarCollapsed, toggleNavbar, searchQuery, setSearchQuery } = useApp();
   const { user, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -51,7 +58,9 @@ export const FloatingNavbar = () => {
     if (!user) return;
     try {
       const res = await api.get('/notifications/unread-count');
-      setUnreadCount(res.unread_count || 0);
+      if (res && typeof res.unread_count === 'number') {
+        setUnreadCount(res.unread_count);
+      }
     } catch (err) {
       console.error('Failed to fetch unread count:', err);
     }
@@ -97,8 +106,17 @@ export const FloatingNavbar = () => {
     }
   };
 
+  // Periodic polling for unread count (60s interval) with unmount cleanup
   useEffect(() => {
+    if (!user) return;
+
     fetchUnreadCount();
+
+    const intervalId = setInterval(() => {
+      fetchUnreadCount();
+    }, 60000);
+
+    return () => clearInterval(intervalId);
   }, [user]);
 
   useEffect(() => {
@@ -140,13 +158,17 @@ export const FloatingNavbar = () => {
   
   // Map backend roles to display titles
   const getDisplayRole = (role) => {
-    if (role === 'commissioner') return 'Zonal Commissioner';
+    if (role === 'commissioner') {
+      return user?.ward ? `Zonal Commissioner (Ward ${user.ward})` : 'Municipal Commissioner (General)';
+    }
     if (role === 'officer') return 'Operations Superintendent';
     return role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Official';
   };
   
   const displayRole = getDisplayRole(user?.role);
-  const displayZone = user?.department || 'Zone 5';
+  const displayZone = user?.ward 
+    ? `Ward ${user.ward}` 
+    : (user?.department ? `${user.department} • All-Jurisdiction` : 'All India / Nationwide Jurisdiction');
   const initials = getUserInitials(displayName);
 
   return (
@@ -585,7 +607,7 @@ export const FloatingNavbar = () => {
                   <button
                     onClick={() => {
                       setShowProfileMenu(false);
-                      alert('Officer profile details are not available yet in this version.');
+                      setShowProfileModal(true);
                     }}
                     style={{
                       width: '100%',
@@ -611,7 +633,7 @@ export const FloatingNavbar = () => {
                   <button
                     onClick={() => {
                       setShowProfileMenu(false);
-                      alert('Account settings are not available yet in this version.');
+                      setShowProfileModal(true);
                     }}
                     style={{
                       width: '100%',
@@ -699,10 +721,174 @@ export const FloatingNavbar = () => {
               e.currentTarget.style.borderColor = 'var(--glass-border)';
             }}
           >
-            {isNavbarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+              {isNavbarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>
         </div>
       </div>
+
+      {/* Officer Profile & Jurisdiction Modal */}
+      <Modal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        title="Officer Profile & Jurisdiction"
+        subtitle="Municipal Administrative Clearance"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowProfileModal(false)}
+            >
+              Close
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleLogout}
+              icon={LogOut}
+            >
+              Sign Out
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Header Identity Card */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              padding: '16px',
+              backgroundColor: 'var(--surface-secondary)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(22, 138, 91, 0.15)',
+                color: 'var(--accent-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '18px',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              {getUserInitials(displayName)}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {displayName}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                {displayRole}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                    color: '#22C55E'
+                  }}
+                >
+                  <CheckCircle2 size={10} /> Active Official Session
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Jurisdiction & Clearance Details */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '10px'
+            }}
+          >
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                <Shield size={12} style={{ color: 'var(--accent-primary)' }} />
+                Administrative Role
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '4px' }}>
+                {displayRole}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Level 2 Clearance
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                <MapPin size={12} style={{ color: 'var(--accent-primary)' }} />
+                Jurisdiction
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '4px' }}>
+                {user?.ward ? `Ward ${user.ward}` : 'All India / Nationwide Jurisdiction'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                {user?.ward ? 'Zonal Municipal Division' : 'Central Executive Administration'}
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Details */}
+          <div
+            style={{
+              padding: '12px',
+              backgroundColor: 'var(--surface-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+              <Mail size={13} style={{ color: 'var(--text-muted)' }} />
+              <span style={{ color: 'var(--text-secondary)' }}>Official Email:</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600, marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
+                {user?.email || 'officer@chennaicorporation.gov.in'}
+              </span>
+            </div>
+            {user?.phone_number && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                <Phone size={13} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--text-secondary)' }}>Contact Desk:</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 600, marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
+                  {user.phone_number}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
     </header>
   );
 };

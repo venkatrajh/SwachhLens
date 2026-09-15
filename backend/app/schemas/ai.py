@@ -46,3 +46,11 @@ class AIAnalysisResult(BaseModel):
         ...,
         description="A brief recommended action for municipal workers."
     )
+    explanation: str | None = Field(
+        default=None,
+        description="Short transparent explanation describing the visual evidence behind the classification."
+    )
+    suggested_resources: str | None = Field(
+        default=None,
+        description="Estimated municipal resources and equipment needed."
+    )

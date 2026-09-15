@@ -47,6 +47,12 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class GoogleAuthRequest(BaseModel):
+    """Payload for POST /api/v1/auth/google."""
+
+    id_token: str = Field(..., min_length=1)
+
+
 class TokenResponse(BaseModel):
     """JWT token response returned on successful login."""
 
@@ -140,6 +146,23 @@ class ChangePasswordRequest(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Account Reactivation
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ReactivationRequest(BaseModel):
+    """Payload for POST /api/v1/auth/request-reactivation."""
+
+    email: EmailStr
+
+
+class ReactivateAccountRequest(BaseModel):
+    """Payload for POST /api/v1/auth/reactivate-account."""
+
+    email: EmailStr
+    token: str = Field(..., min_length=1)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Profile update
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -151,4 +174,5 @@ class UpdateProfileRequest(BaseModel):
     ward: str | None = Field(default=None, max_length=100)
     department: str | None = Field(default=None, max_length=255)
     avatar_url: str | None = Field(default=None)
+
 

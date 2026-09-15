@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # ── Application ──────────────────────────────────────────────────────────
     app_name: str = "SwachhLens API"
-    app_version: str = "0.1.0"
+    app_version: str = "2.0.0"
     debug: bool = False
     environment: Literal["development", "staging", "production"] = "development"
 
@@ -41,6 +41,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ]
 
     @field_validator("cors_origins", mode="before")
@@ -76,6 +78,9 @@ class Settings(BaseSettings):
     password_reset_expire_minutes: int = 30
 
 
+    # ── Google OAuth (Phase 3+) ──────────────────────────────────────────────
+    google_client_id: str = ""
+
     # ── Brevo (Phase 3) ──────────────────────────────────────────────────────
     brevo_api_key: str = ""
     brevo_sender_email: str = "noreply@swachlens.app"
@@ -84,12 +89,12 @@ class Settings(BaseSettings):
     # ── Frontend (for email links) ────────────────────────────────────────────
     frontend_base_url: str = "http://localhost:3000"
 
-    # ── AI / Vision (Phase 5: Groq) ──────────────────────────────────────────
+    # ── AI / Vision (Groq Version 1.0) ───────────────────────────────────────
     groq_api_key: str | None = None
-    groq_model: str = "qwen/qwen3.6-27b"
+    groq_model: str = "qwen/qwen3.8-27b"
     groq_timeout: int = 30
 
-    # ── Storage & Evidence (Phase 3) ─────────────────────────────────────────
+    # ── Storage & Evidence ───────────────────────────────────────────────────
     storage_backend: Literal["local", "supabase"] = "local"
     storage_local_dir: str = "media"
     storage_max_file_size_mb: int = 5

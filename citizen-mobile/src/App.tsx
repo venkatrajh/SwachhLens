@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { MobileContainer } from './components/layout/MobileContainer';
 import { BottomNav } from './components/layout/BottomNav';
 import { LanguageModal } from './components/ui/LanguageModal';
+import { OfflineBanner } from './components/ui/OfflineBanner';
 
 // Pages
 import { Welcome } from './pages/Welcome';
@@ -14,6 +15,7 @@ import { Register } from './pages/Register';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { ReactivateAccount } from './pages/ReactivateAccount';
 import { Home } from './pages/Home';
 import { ReportWaste } from './pages/ReportWaste';
 import { CameraPage } from './pages/Camera';
@@ -42,6 +44,7 @@ export const App: React.FC = () => {
           <LanguageProvider>
             <LanguageModal />
             <MobileContainer>
+              <OfflineBanner />
               <Routes>
                 {/* Onboarding & Authentication */}
                 <Route path="/" element={<Welcome />} />
@@ -51,6 +54,8 @@ export const App: React.FC = () => {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/reactivate" element={<ReactivateAccount />} />
+                <Route path="/reactivate-account" element={<ReactivateAccount />} />
 
                 {/* Protected Citizen Application Flow */}
                 <Route element={<ProtectedRoute />}>

@@ -128,6 +128,32 @@ def is_legacy_data_uri(url: str | None) -> bool:
     return url.startswith("data:image/")
 
 
+def is_application_storage_url(url: str | None) -> bool:
+    """
+    Check if the given URL is a valid application-managed storage URL.
+    Recognizes:
+    - Local media paths: /media/reports/..., media/reports/...
+    - Public base URLs with /media/...
+    - Configured Supabase Storage bucket URLs
+    """
+    if not url:
+        return False
+    clean = url.strip()
+    if clean.startswith("/media/") or clean.startswith("media/"):
+        return True
+    settings = get_settings()
+    if settings.storage_public_base_url:
+        base = settings.storage_public_base_url.rstrip("/")
+        if clean.startswith(f"{base}/media/"):
+            return True
+    if settings.supabase_url:
+        base_supabase = settings.supabase_url.rstrip("/")
+        bucket = settings.supabase_storage_bucket
+        if clean.startswith(f"{base_supabase}/storage/v1/object/public/{bucket}/"):
+            return True
+    return False
+
+
 async def store_evidence(
     contents: bytes,
     report_id: uuid.UUID | str,

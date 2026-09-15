@@ -103,7 +103,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       mapInstanceRef.current = null;
       markerRef.current = null;
     };
-  }, []);
+  }, [defaultLat, defaultLng]);
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);

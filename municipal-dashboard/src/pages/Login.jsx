@@ -8,8 +8,8 @@ import { Input } from '../components/ui/Input';
 import { AppBackground } from '../components/layout/AppBackground';
 
 export const Login = () => {
-  const [email, setEmail] = useState('commissioner.zone5@chennaicorporation.gov.in');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -297,7 +297,7 @@ export const Login = () => {
               <Input
                 label="Official Municipal Email"
                 type="email"
-                placeholder="commissioner.zone5@chennaicorporation.gov.in"
+                placeholder="Enter official municipal email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -307,7 +307,7 @@ export const Login = () => {
                 <Input
                   label="Password"
                   type="password"
-                  placeholder="••••••••••••"
+                  placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

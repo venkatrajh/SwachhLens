@@ -2,8 +2,20 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 
+const escapeHtml = (str) => {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 export const InteractiveWasteMap = ({
   complaints = [],
+  hotspots = [],
+  showHotspots = true,
   selectedId = null,
   onSelectComplaint = () => {},
   height = '560px',
@@ -14,6 +26,7 @@ export const InteractiveWasteMap = ({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef({});
+  const hotspotsRef = useRef([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -104,22 +117,31 @@ export const InteractiveWasteMap = ({
 
       const marker = L.marker([complaint.latitude, complaint.longitude], { icon: customIcon }).addTo(map);
 
+      // Sanitize dynamic fields before Leaflet HTML interpolation (Phase 10: F-SEC-03)
+      const safeId = escapeHtml(complaint.id);
+      const safePriority = escapeHtml(complaint.priority);
+      const safeWasteType = escapeHtml(complaint.wasteType);
+      const safeLocation = escapeHtml(complaint.location);
+      const safeSeverity = escapeHtml(complaint.severity);
+      const safeStatus = escapeHtml(complaint.status);
+      const safeColor = escapeHtml(color);
+
       // Liquid Glass Popup
       const popupContent = document.createElement('div');
       popupContent.style.padding = '8px 10px';
       popupContent.style.minWidth = '220px';
       popupContent.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-          <span style="font-family: var(--font-mono); font-weight: 700; font-size: 11px; color: var(--accent-primary);">${complaint.id}</span>
-          <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${color}25; color: ${color};">${complaint.priority}</span>
+          <span style="font-family: var(--font-mono); font-weight: 700; font-size: 11px; color: var(--accent-primary);">${safeId}</span>
+          <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${safeColor}25; color: ${safeColor};">${safePriority}</span>
         </div>
-        <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); margin-bottom: 3px;">${complaint.wasteType}</div>
-        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">📍 ${complaint.location}</div>
+        <div style="font-weight: 700; font-size: 13px; color: var(--text-primary); margin-bottom: 3px;">${safeWasteType}</div>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">📍 ${safeLocation}</div>
         <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
-          <span>Severity: <strong style="color: var(--text-primary);">${complaint.severity}/10</strong></span>
-          <span>Status: <strong style="color: var(--text-primary);">${complaint.status}</strong></span>
+          <span>Severity: <strong style="color: var(--text-primary);">${safeSeverity}/10</strong></span>
+          <span>Status: <strong style="color: var(--text-primary);">${safeStatus}</strong></span>
         </div>
-        <button id="view-complaint-${complaint.id}" style="
+        <button id="view-complaint-${safeId}" style="
           width: 100%;
           padding: 6px 12px;
           border-radius: 6px;
@@ -139,7 +161,7 @@ export const InteractiveWasteMap = ({
       // Attach View Complaint click listener
       marker.bindPopup(popupContent);
       marker.on('popupopen', () => {
-        const btn = document.getElementById(`view-complaint-${complaint.id}`);
+        const btn = document.getElementById(`view-complaint-${safeId}`);
         if (btn) {
           btn.onclick = () => navigate(`/complaints/${complaint.id}`);
         }
@@ -152,6 +174,46 @@ export const InteractiveWasteMap = ({
       markersRef.current[complaint.id] = marker;
     });
   }, [complaints, selectedId]);
+
+  // Render Hotspot Circles (250m radius zones)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    // Clear existing hotspot layers
+    hotspotsRef.current.forEach(layer => layer.remove());
+    hotspotsRef.current = [];
+
+    if (!showHotspots || !Array.isArray(hotspots)) return;
+
+    hotspots.forEach(h => {
+      if (!h.center_lat || !h.center_lon) return;
+
+      const isCritical = h.primary_priority === 'CRITICAL';
+      const color = isCritical ? '#FB7185' : '#00F0FF';
+      const fillColor = isCritical ? 'rgba(251, 113, 133, 0.20)' : 'rgba(0, 240, 255, 0.14)';
+
+      const circle = L.circle([h.center_lat, h.center_lon], {
+        radius: h.radius_meters || 250,
+        color: color,
+        weight: 1.5,
+        dashArray: '5, 5',
+        fillColor: fillColor,
+        fillOpacity: 1,
+      }).addTo(map);
+
+      circle.bindTooltip(
+        `<div style="font-family: var(--font-sans); font-size: 11px; padding: 4px 6px;">
+          <strong style="color: ${color};">${h.id}: Hotspot Zone (${h.report_count} reports)</strong><br/>
+          <span>Dominant: <strong>${h.primary_waste_type}</strong> • Max Sev: <strong>${h.max_severity}/10</strong></span><br/>
+          <span style="color: #94A3B8; font-size: 10px;">${h.address_summary || ''}</span>
+        </div>`,
+        { permanent: false, direction: 'top' }
+      );
+
+      hotspotsRef.current.push(circle);
+    });
+  }, [hotspots, showHotspots]);
 
   return (
     <div

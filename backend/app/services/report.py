@@ -20,6 +20,7 @@ from app.models.report import Report
 from app.models.report_status_history import ReportStatusHistory
 from app.models.team import Team
 from app.models.vehicle import Vehicle
+from app.schemas.ai import AIAnalysisResult
 from app.schemas.report import ReportCreateRequest, ReportUpdateRequest
 from app.services.ai import analyze_report_with_groq
 from app.services.duplicate_detection import find_duplicate_report
@@ -36,7 +37,7 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "analyzing":   {"assigned", "duplicate"},
     "assigned":    {"assigned", "in_progress", "duplicate"},
     "in_progress": {"completed", "escalated", "duplicate"},
-    "completed":   {"verified", "duplicate"},
+    "completed":   {"verified", "in_progress", "escalated", "duplicate"},
     "escalated":   {"assigned", "duplicate"},
     # Terminal states — no outgoing transitions
     "verified":    set(),
@@ -398,11 +399,12 @@ async def run_analysis_pipeline(
     report: Report,
 ) -> bool:
     """
-    Run duplicate detection, Groq AI analysis, and decision engine synchronously.
+    Run duplicate detection, Groq AI vision analysis (Version 1.0),
+    and deterministic decision engine.
     Does NOT commit the transaction; caller must commit.
     
     Returns True if analysis succeeded (or it was a duplicate).
-    Returns False if AI analysis failed.
+    Returns False if analysis failed.
     """
     # 1. Initial Duplicate detection (proximity & time window, with reporter-provided waste_type)
     duplicate = await find_duplicate_report(db, report)
@@ -418,16 +420,19 @@ async def run_analysis_pipeline(
         await db.refresh(report)
         return True
 
-    # 2. AI Analysis
+    # 2. Groq AI Vision Analysis (Version 1.0 Architecture)
+    # Groq analyzes the citizen-submitted image evidence and description.
     ai_result = await analyze_report_with_groq(report.description, report.image_url)
+
     if not ai_result:
+        logger.warning("Groq AI analysis failed or returned None for report %s", report.id)
         return False
 
     # 3. Transition to analyzing if currently pending
     if report.status == "pending":
         await transition_status(db, report, "analyzing", label="AI analysis completed")
 
-    # 4. Update AI fields
+    # 4. Populate AI analysis fields
     report.waste_type = ai_result.waste_type
     report.volume_level = ai_result.volume_level
     report.confidence = ai_result.confidence
@@ -436,7 +441,7 @@ async def run_analysis_pipeline(
     report.is_hazardous = ai_result.is_hazardous
     report.is_recyclable = ai_result.is_recyclable
 
-    # 5. Decision Engine
+    # 5. Deterministic Decision Engine (Authoritative for Dispatch Recommendations)
     recs = generate_recommendations(ai_result)
     report.recommended_team = recs.get("recommended_team")
     report.recommended_vehicle = recs.get("recommended_vehicle")
@@ -444,7 +449,7 @@ async def run_analysis_pipeline(
     if "priority" in recs:
         report.priority = recs["priority"]
 
-    # 6. Secondary duplicate check (proximity, time window, and AI-classified waste_type)
+    # 6. Secondary duplicate check (proximity, time window, and classified waste_type)
     duplicate_after_ai = await find_duplicate_report(db, report)
     if duplicate_after_ai:
         report.duplicate = True

@@ -191,6 +191,11 @@ class ReportResponse(BaseModel):
     priority: str
     confidence: float
 
+    # Local CV Perception Provenance (EXP_02 MobileNetV3-Large)
+    cv_model: str | None = None
+    cv_confidence: float | None = None
+    cv_probabilities: dict[str, float] | None = None
+
     # Flags
     duplicate: bool
     linked_report_id: uuid.UUID | None

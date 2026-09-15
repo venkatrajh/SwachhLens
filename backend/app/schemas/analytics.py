@@ -47,3 +47,22 @@ class TrendItem(BaseModel):
 class TrendsResponse(BaseModel):
     interval: str
     trends: List[TrendItem]
+
+
+class HotspotItem(BaseModel):
+    id: str
+    center_lat: float
+    center_lon: float
+    report_count: int
+    primary_waste_type: str
+    max_severity: float
+    primary_priority: str
+    address_summary: Optional[str] = None
+    radius_meters: float = 250.0
+
+
+class HotspotsResponse(BaseModel):
+    total_hotspots: int
+    radius_meters: float
+    min_reports: int
+    hotspots: List[HotspotItem]

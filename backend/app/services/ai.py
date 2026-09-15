@@ -11,19 +11,33 @@ from app.schemas.ai import AIAnalysisResult
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an expert municipal waste analyst AI.
-You must analyze the provided waste report details and image (if available) to determine its characteristics.
+SYSTEM_PROMPT = """You are an expert municipal waste and sanitation intelligence AI for SwachhLens.
+Analyze the provided waste report description and image evidence (if provided) to extract structured, actionable municipal triage data.
+
+Examine the visual evidence carefully and determine:
+1. Waste Category / Type: Primary category (e.g. organic, plastic, paper, glass, metal, e-waste, hazardous, household_mixed, construction, textile, unclassified).
+2. Volume Level: One of 'small', 'medium', 'large', 'very_large'.
+3. Confidence: Score between 0.0 and 1.0 based on visual clarity and certainty. Low confidence for blurry or occluded images.
+4. Severity Score: Score from 0.0 to 100.0 considering volume, obstruction, location risk, and public health impact.
+5. Estimated Weight (kg): Non-negative numeric weight estimate in kilograms.
+6. Hazardous Waste Indicators: True if dangerous materials (sharps, chemicals, batteries, biohazard, medical, exposed wires) are present.
+7. Recyclability: True if the visible waste can be recycled or sorted into recyclables.
+8. Recommended Action: Clear, concise operational cleanup action for municipal field crews.
+9. Explanation: Brief transparent summary of the visual evidence and reasoning.
+10. Suggested Resources: Recommended equipment or crew (e.g. standard crew, PPE, hazmat gear, dump truck).
 
 You MUST respond with a valid JSON object matching this EXACT schema:
 {
-  "waste_type": "string (e.g. household, construction, organic, medical, electronic)",
-  "volume_level": "string (exactly one of: 'small', 'medium', 'large', 'very_large')",
+  "waste_type": "string",
+  "volume_level": "string (one of: 'small', 'medium', 'large', 'very_large')",
   "confidence": float (between 0.0 and 1.0),
   "severity_score": float (between 0.0 and 100.0),
   "estimated_weight_kg": float (non-negative),
   "is_hazardous": boolean,
   "is_recyclable": boolean,
-  "recommended_action": "string (brief action for municipal workers)"
+  "recommended_action": "string",
+  "explanation": "string",
+  "suggested_resources": "string"
 }
 
 Do not include markdown code blocks. Output ONLY the raw JSON object.
@@ -70,14 +84,19 @@ def clean_and_parse_json(content: str) -> dict[str, Any]:
         else:
             raise
 
-    if isinstance(data, dict) and "volume_level" in data:
-        vol = str(data["volume_level"]).lower().strip()
-        data["volume_level"] = VOLUME_LEVEL_MAP.get(vol, data["volume_level"])
+    if isinstance(data, dict):
+        if "volume_level" in data and isinstance(data["volume_level"], str):
+            vol = data["volume_level"].lower().strip()
+            if vol in VOLUME_LEVEL_MAP:
+                data["volume_level"] = VOLUME_LEVEL_MAP[vol]
 
     return data
 
 
-async def analyze_report_with_groq(description: str | None, image_url: str | None) -> AIAnalysisResult | None:
+async def analyze_report_with_groq(
+    description: str | None,
+    image_url: str | None,
+) -> AIAnalysisResult | None:
     """
     Calls the Groq API to analyze a waste report.
     Returns a validated AIAnalysisResult, or None if analysis fails.
@@ -90,7 +109,7 @@ async def analyze_report_with_groq(description: str | None, image_url: str | Non
     # Construct the user message
     user_content: list[dict[str, Any]] = []
 
-    text_prompt = "Analyze this waste report."
+    text_prompt = "Analyze this citizen-submitted waste report."
     if description:
         text_prompt += f"\nDescription provided by citizen: {description}"
     else:

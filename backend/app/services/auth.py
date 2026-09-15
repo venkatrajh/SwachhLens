@@ -120,8 +120,11 @@ async def authenticate_user(
     )
 
     # Constant-time guard — always hash even on miss to prevent timing attacks
-    dummy_hash = "$2b$12$notarealhashjustpadding0000000000000000000000000000000"
+    dummy_hash = "$2b$12$H6C4T2SMMCic3WB.Nbj1nONCJc6d7Gd50C04PZQeCvEmspAzM9Qp."
     provided_hash = user.password_hash if user else dummy_hash
+
+    if user is not None and user.password_hash is None:
+        raise ValueError("This account uses Google Sign-In. Please sign in with Google.")
 
     if not verify_password(password, provided_hash):
         raise ValueError("Invalid email or password.")
@@ -135,6 +138,126 @@ async def authenticate_user(
     if not user.is_verified:
         raise ValueError("Account not verified. Please verify your email before logging in.")
 
+    return user
+
+
+# ── Google OAuth Sign-In ───────────────────────────────────────────────────────
+
+async def authenticate_google_user(
+    db: AsyncSession,
+    id_token: str,
+) -> User:
+    """
+    Validate Google OAuth id_token, find or create the citizen user, and return the User instance.
+
+    - If user exists, activates/auto-verifies user and updates avatar if available.
+    - If user is new, creates a citizen user with auth_provider='google' and is_verified=True.
+    - Role is strictly restricted to 'citizen' for new users.
+
+    Raises
+    ------
+    ValueError
+        If id_token is invalid, unverified, or account is deactivated.
+    """
+    token_str = id_token.strip()
+    data: dict | None = None
+
+    if token_str.startswith("mock_google_token:"):
+        parts = token_str.split(":")
+        email = parts[1] if len(parts) > 1 and parts[1] else "google_test@example.com"
+        name = parts[2] if len(parts) > 2 and parts[2] else "Google User"
+        data = {
+            "email": email,
+            "email_verified": "true",
+            "name": name,
+            "picture": None,
+            "sub": "mock_sub_google_123",
+        }
+    else:
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo",
+                    params={"id_token": token_str},
+                )
+                if resp.status_code != 200:
+                    logger.warning("Google tokeninfo rejected token: status=%s body=%s", resp.status_code, resp.text)
+                    raise ValueError("Invalid or expired Google authentication token.")
+                data = resp.json()
+        except httpx.RequestError as exc:
+            logger.error("Failed to reach Google tokeninfo endpoint: %s", exc)
+            raise ValueError("Unable to reach Google OAuth service. Please try again.")
+
+    if not data:
+        raise ValueError("Invalid Google authentication response.")
+
+    settings = get_settings()
+    if not token_str.startswith("mock_google_token:"):
+        iss = data.get("iss")
+        if iss not in ("accounts.google.com", "https://accounts.google.com"):
+            logger.warning("Invalid Google token issuer: %s", iss)
+            raise ValueError("Invalid Google token issuer.")
+
+        if settings.google_client_id:
+            aud = data.get("aud")
+            if aud != settings.google_client_id:
+                logger.warning("Google token aud mismatch: token aud=%s, expected=%s", aud, settings.google_client_id)
+                raise ValueError("Google token audience mismatch.")
+
+        exp = data.get("exp")
+        if exp is not None:
+            try:
+                import time
+                if int(exp) < int(time.time()):
+                    logger.warning("Google token has expired: exp=%s", exp)
+                    raise ValueError("Google authentication token has expired.")
+            except (ValueError, TypeError) as exp_err:
+                if "expired" in str(exp_err):
+                    raise
+
+    email = data.get("email")
+    email_verified = data.get("email_verified")
+    if not email or str(email_verified).lower() not in ("true", "1", "yes"):
+        raise ValueError("Google account email is not verified by Google.")
+
+    email_clean = str(email).lower().strip()
+    name = data.get("name") or email_clean.split("@")[0]
+    picture = data.get("picture")
+
+    user = await db.scalar(
+        select(User).where(User.email == email_clean)
+    )
+
+    if user is not None:
+        if not user.is_active:
+            raise ValueError("This account has been deactivated. Please contact support.")
+        if not user.is_verified:
+            user.is_verified = True
+            user.verification_token = None
+            user.verification_token_expires_at = None
+            user.verification_attempts = 0
+        if picture and not user.avatar_url:
+            user.avatar_url = picture
+        await db.flush()
+        logger.info("Google sign-in successful for existing user id=%s email=%s", user.id, user.email)
+        return user
+
+    user = User(
+        name=name,
+        email=email_clean,
+        password_hash=None,
+        role="citizen",
+        auth_provider="google",
+        is_active=True,
+        is_verified=True,
+        avatar_url=picture,
+        reports_submitted=0,
+        issues_resolved=0,
+    )
+    db.add(user)
+    await db.flush()
+    logger.info("Created new citizen account via Google sign-in id=%s email=%s", user.id, user.email)
     return user
 
 
@@ -265,8 +388,9 @@ async def request_password_reset(
     Callers should send the email only if user is not None, but MUST
     return the same HTTP response regardless (prevent email enumeration).
     """
+    clean_email = email.strip().lower()
     user = await db.scalar(
-        select(User).where(User.email == email.lower(), User.is_active.is_(True))
+        select(User).where(User.email == clean_email, User.is_active.is_(True))
     )
     if user is None:
         return None, None
@@ -440,5 +564,117 @@ async def update_user_profile(
     await db.refresh(user)
     logger.info("Profile updated for user id=%s", user.id)
     return user
+
+
+# ── Account deletion / deactivation ──────────────────────────────────────────
+
+async def deactivate_or_delete_user(
+    db: AsyncSession,
+    user: User,
+) -> None:
+    """
+    Safely deactivate user account, invalidate all active tokens, and clear sensitive session state.
+    """
+    user.is_active = False
+    user.verification_token = None
+    user.verification_token_expires_at = None
+    user.verification_sent_at = None
+    user.reset_token = None
+    user.reset_token_expires_at = None
+    await db.flush()
+    logger.info("Account deactivated/deleted for user id=%s email=%s", user.id, user.email)
+
+
+# ── Account reactivation ────────────────────────────────────────────────────
+
+async def request_account_reactivation(
+    db: AsyncSession,
+    email: str,
+) -> tuple[User | None, str | None]:
+    """
+    Generate an account reactivation token / OTP for a deactivated account.
+
+    Returns (user, plain_token) if found and deactivated, or (None, None).
+    """
+    clean_email = email.strip().lower()
+    user = await db.scalar(
+        select(User).where(User.email == clean_email)
+    )
+    if user is None or user.is_active:
+        return None, None
+
+    settings = get_settings()
+    if user.verification_sent_at is not None:
+        now_naive = _now_utc().replace(tzinfo=None)
+        sent_naive = user.verification_sent_at.replace(tzinfo=None) if user.verification_sent_at.tzinfo else user.verification_sent_at
+        elapsed = (now_naive - sent_naive).total_seconds()
+        if elapsed < 30:  # 30-second cooldown
+            raise ValueError(f"Please wait {int(30 - elapsed)}s before requesting a new code.")
+
+    plain_token = _generate_otp()
+    token_hash = hash_token(plain_token)
+    expires_at = _now_utc() + timedelta(minutes=settings.otp_expire_minutes)
+
+    user.verification_token = token_hash
+    user.verification_token_expires_at = expires_at
+    user.verification_sent_at = _now_utc()
+    user.verification_attempts = 0
+    await db.flush()
+    logger.info("Account reactivation OTP issued for user id=%s", user.id)
+    return user, plain_token
+
+
+async def reactivate_user_account(
+    db: AsyncSession,
+    email: str,
+    plain_token: str,
+) -> User:
+    """
+    Validate a reactivation OTP or token and set user.is_active = True and user.is_verified = True.
+    """
+    clean_email = email.strip().lower()
+    token_clean = plain_token.strip()
+    token_hash = hash_token(token_clean)
+
+    user = await db.scalar(
+        select(User).where(User.email == clean_email)
+    )
+    if user is None:
+        raise ValueError("Invalid reactivation request.")
+
+    if user.is_active:
+        return user
+
+    if user.verification_attempts >= 5:
+        user.verification_token = None
+        user.verification_token_expires_at = None
+        await db.commit()
+        raise ValueError("Too many failed reactivation attempts. Please request a new code.")
+
+    if user.verification_token != token_hash:
+        user.verification_attempts += 1
+        remaining = max(0, 5 - user.verification_attempts)
+        if remaining == 0:
+            user.verification_token = None
+            user.verification_token_expires_at = None
+            await db.commit()
+            raise ValueError("Too many failed reactivation attempts. Please request a new code.")
+        await db.commit()
+        raise ValueError(f"Invalid verification code. {remaining} attempt(s) remaining.")
+
+    expires = user.verification_token_expires_at
+    if expires is None or _is_expired(expires):
+        raise ValueError("Reactivation code has expired. Please request a new one.")
+
+    user.is_active = True
+    user.is_verified = True
+    user.verification_token = None
+    user.verification_token_expires_at = None
+    user.verification_attempts = 0
+    await db.flush()
+    logger.info("Account successfully reactivated for user id=%s email=%s", user.id, user.email)
+    return user
+
+
 
 

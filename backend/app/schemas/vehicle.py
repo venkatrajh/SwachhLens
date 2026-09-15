@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class VehicleBase(BaseModel):
     plate_number: str = Field(..., max_length=20)
-    type: str = Field(..., max_length=50)
+    type: str | None = Field(default=None, max_length=50)
     active: bool = True
 
 

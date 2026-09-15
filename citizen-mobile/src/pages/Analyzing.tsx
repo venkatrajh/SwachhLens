@@ -22,7 +22,7 @@ export const Analyzing: React.FC = () => {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const processReport = async () => {
+  const processReport = React.useCallback(async () => {
     const raw = sessionStorage.getItem('swachhlens_pending_report');
     if (!raw) {
       navigate('/report', { replace: true });
@@ -76,16 +76,21 @@ export const Analyzing: React.FC = () => {
         setError(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
       }
     }
-  };
+  }, [navigate, t]);
+
+  const hasStartedRef = useRef<boolean>(false);
 
   useEffect(() => {
     isMountedRef.current = true;
-    processReport();
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true;
+      processReport();
+    }
 
     return () => {
       isMountedRef.current = false;
     };
-  }, [navigate]);
+  }, [processReport]);
 
   return (
     <div className="relative min-h-[100dvh] bg-[#F7FAF8] dark:bg-[#0D1712] flex flex-col justify-between p-6 overflow-hidden">
